@@ -1,0 +1,37 @@
+name: Auto-tag commit with YY-MM-DD/branchname
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+
+permissions:
+    contents: write
+
+jobs: 
+  tag-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Get current date
+        run: echo "::set-output name=date::$(date +%y-%m-%d)"
+        id: date
+      - name: Get branch name
+        run: echo "::set-output name=branch::${GITHUB_REF#refs/heads/}"
+        id: branch
+      - name: Create tag string
+        run: echo "::set-output name=tag::${{ steps.date.outputs.date }}-${{ steps.branch.outputs.branch }}"
+        id: tag
+      - name: Delete tag if exists
+        run: |
+          if git rev-parse --verify --quiet ${{ steps.tag.outputs.tag }}; then
+            git tag -d ${{ steps.tag.outputs.tag }}
+            git push --delete origin ${{ steps.tag.outputs.tag }}
+          fi
+      - name: Tag commit with YY-MM-DD-branchname
+        run: |
+          git tag ${{ steps.tag.outputs.tag }}
+          git push --tags --force 
