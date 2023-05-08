@@ -1,28 +1,24 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.17;
 
-import { OrderType } from "./ConsiderationEnums.sol";
+import {OrderType} from "seaport-types/lib/ConsiderationEnums.sol";
 
-import {
-    AdvancedOrder,
-    BasicOrderParameters,
-    OrderParameters
-} from "./ConsiderationStructs.sol";
+import {AdvancedOrder, BasicOrderParameters, OrderParameters} from "seaport-types/lib/ConsiderationStructs.sol";
 
-import { ZoneInteractionErrors } from "../interfaces/ZoneInteractionErrors.sol";
+import {ZoneInteractionErrors} from "seaport-types/interfaces/ZoneInteractionErrors.sol";
 
-import { LowLevelHelpers } from "./LowLevelHelpers.sol";
+import {LowLevelHelpers} from "./LowLevelHelpers.sol";
 
-import { ConsiderationEncoder } from "./ConsiderationEncoder.sol";
+import {ConsiderationEncoder} from "./ConsiderationEncoder.sol";
 
-import { MemoryPointer } from "../helpers/PointerLibraries.sol";
+import {MemoryPointer} from "seaport-types/helpers/PointerLibraries.sol";
 
 import {
     ContractOrder_orderHash_offerer_shift,
     MaskOverFirstFourBytes,
     OneWord,
     OrderParameters_zone_offset
-} from "./ConsiderationConstants.sol";
+} from "seaport-types/lib/ConsiderationConstants.sol";
 
 import {
     Error_selector_offset,
@@ -30,18 +26,14 @@ import {
     InvalidRestrictedOrder_error_length,
     InvalidRestrictedOrder_error_orderHash_ptr,
     InvalidRestrictedOrder_error_selector
-} from "./ConsiderationErrorConstants.sol";
+} from "seaport-types/lib/ConsiderationErrorConstants.sol";
 
 /**
  * @title ZoneInteraction
  * @author 0age
  * @notice ZoneInteraction contains logic related to interacting with zones.
  */
-contract ZoneInteraction is
-    ConsiderationEncoder,
-    ZoneInteractionErrors,
-    LowLevelHelpers
-{
+contract ZoneInteraction is ConsiderationEncoder, ZoneInteractionErrors, LowLevelHelpers {
     /**
      * @dev Internal function to determine if an order has a restricted order
      *      type and, if so, to ensure that either the zone is the caller or
@@ -63,19 +55,10 @@ contract ZoneInteraction is
         // validation will be skipped.
         if (_isRestrictedAndCallerNotZone(orderType, parameters.zone)) {
             // Encode the `validateOrder` call in memory.
-            (MemoryPointer callData, uint256 size) = _encodeValidateBasicOrder(
-                orderHash,
-                parameters
-            );
+            (MemoryPointer callData, uint256 size) = _encodeValidateBasicOrder(orderHash, parameters);
 
             // Perform `validateOrder` call and ensure magic value was returned.
-            _callAndCheckStatus(
-                parameters.zone,
-                orderHash,
-                callData,
-                size,
-                InvalidRestrictedOrder_error_selector
-            );
+            _callAndCheckStatus(parameters.zone, orderHash, callData, size, InvalidRestrictedOrder_error_selector);
         }
     }
 
@@ -106,24 +89,12 @@ contract ZoneInteraction is
         OrderParameters memory parameters = advancedOrder.parameters;
 
         // OrderType 2-3 require zone to be caller or approve via validateOrder.
-        if (
-            _isRestrictedAndCallerNotZone(parameters.orderType, parameters.zone)
-        ) {
+        if (_isRestrictedAndCallerNotZone(parameters.orderType, parameters.zone)) {
             // Encode the `validateOrder` call in memory.
-            (callData, size) = _encodeValidateOrder(
-                orderHash,
-                parameters,
-                advancedOrder.extraData,
-                orderHashes
-            );
+            (callData, size) = _encodeValidateOrder(orderHash, parameters, advancedOrder.extraData, orderHashes);
 
             // Set the target to the zone.
-            target = (
-                parameters
-                    .toMemoryPointer()
-                    .offset(OrderParameters_zone_offset)
-                    .readAddress()
-            );
+            target = (parameters.toMemoryPointer().offset(OrderParameters_zone_offset).readAddress());
 
             // Set the restricted-order-specific error selector.
             errorSelector = InvalidRestrictedOrder_error_selector;
@@ -134,20 +105,12 @@ contract ZoneInteraction is
             // Shift the target 96 bits to the left.
             uint256 shiftedOfferer;
             assembly {
-                shiftedOfferer := shl(
-                    ContractOrder_orderHash_offerer_shift,
-                    target
-                )
+                shiftedOfferer := shl(ContractOrder_orderHash_offerer_shift, target)
             }
 
             // Encode the `ratifyOrder` call in memory.
-            (callData, size) = _encodeRatifyOrder(
-                orderHash,
-                parameters,
-                advancedOrder.extraData,
-                orderHashes,
-                shiftedOfferer
-            );
+            (callData, size) =
+                _encodeRatifyOrder(orderHash, parameters, advancedOrder.extraData, orderHashes, shiftedOfferer);
 
             // Set the contract-order-specific error selector.
             errorSelector = InvalidContractOrder_error_selector;
@@ -169,18 +132,20 @@ contract ZoneInteraction is
      * @return mustValidate True if the order type is restricted and the caller
      *                      is not the specified zone, false otherwise.
      */
-    function _isRestrictedAndCallerNotZone(
-        OrderType orderType,
-        address zone
-    ) internal view returns (bool mustValidate) {
+    function _isRestrictedAndCallerNotZone(OrderType orderType, address zone)
+        internal
+        view
+        returns (bool mustValidate)
+    {
         assembly {
-            mustValidate := and(
-                // Note that this check requires that there are no order types
-                // beyond the current set (0-4).  It will need to be modified if
-                // more order types are added.
-                and(lt(orderType, 4), gt(orderType, 1)),
-                iszero(eq(caller(), zone))
-            )
+            mustValidate :=
+                and(
+                    // Note that this check requires that there are no order types
+                    // beyond the current set (0-4).  It will need to be modified if
+                    // more order types are added.
+                    and(lt(orderType, 4), gt(orderType, 1)),
+                    iszero(eq(caller(), zone))
+                )
         }
     }
 
@@ -233,10 +198,7 @@ contract ZoneInteraction is
                 //     "InvalidRestrictedOrder(bytes32)",
                 //     orderHash
                 // ))
-                revert(
-                    Error_selector_offset,
-                    InvalidRestrictedOrder_error_length
-                )
+                revert(Error_selector_offset, InvalidRestrictedOrder_error_length)
             }
         }
 
@@ -251,10 +213,7 @@ contract ZoneInteraction is
                 //     "InvalidRestrictedOrder(bytes32)",
                 //     orderHash
                 // ))
-                revert(
-                    Error_selector_offset,
-                    InvalidRestrictedOrder_error_length
-                )
+                revert(Error_selector_offset, InvalidRestrictedOrder_error_length)
             }
         }
     }

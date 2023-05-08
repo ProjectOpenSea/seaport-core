@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.17;
 
-import { ConduitInterface } from "../interfaces/ConduitInterface.sol";
+import {ConduitInterface} from "seaport-types/interfaces/ConduitInterface.sol";
 
-import { ConduitItemType } from "../conduit/lib/ConduitEnums.sol";
+import {ConduitItemType} from "seaport-types/conduit/lib/ConduitEnums.sol";
 
-import { ItemType } from "./ConsiderationEnums.sol";
+import {ItemType} from "seaport-types/lib/ConsiderationEnums.sol";
 
-import { ReceivedItem } from "./ConsiderationStructs.sol";
+import {ReceivedItem} from "seaport-types/lib/ConsiderationStructs.sol";
 
-import { Verifiers } from "./Verifiers.sol";
+import {Verifiers} from "./Verifiers.sol";
 
-import { TokenTransferrer } from "./TokenTransferrer.sol";
+import {TokenTransferrer} from "./TokenTransferrer.sol";
 
 import {
     Accumulator_array_length_ptr,
@@ -31,7 +31,7 @@ import {
     FreeMemoryPointerSlot,
     OneWord,
     TwoWords
-} from "./ConsiderationConstants.sol";
+} from "seaport-types/lib/ConsiderationConstants.sol";
 
 import {
     Error_selector_offset,
@@ -39,14 +39,14 @@ import {
     NativeTokenTransferGenericFailure_error_amount_ptr,
     NativeTokenTransferGenericFailure_error_length,
     NativeTokenTransferGenericFailure_error_selector
-} from "./ConsiderationErrorConstants.sol";
+} from "seaport-types/lib/ConsiderationErrorConstants.sol";
 
 import {
     _revertInvalidCallToConduit,
     _revertInvalidConduit,
     _revertInvalidERC721TransferAmount,
     _revertUnusedItemParameters
-} from "./ConsiderationErrors.sol";
+} from "seaport-types/lib/ConsiderationErrors.sol";
 
 /**
  * @title Executor
@@ -79,12 +79,7 @@ contract Executor is Verifiers, TokenTransferrer {
      * @param accumulator An open-ended array that collects transfers to execute
      *                    against a given conduit in a single call.
      */
-    function _transfer(
-        ReceivedItem memory item,
-        address from,
-        bytes32 conduitKey,
-        bytes memory accumulator
-    ) internal {
+    function _transfer(ReceivedItem memory item, address from, bytes32 conduitKey, bytes memory accumulator) internal {
         // If the item type indicates Ether or a native token...
         if (item.itemType == ItemType.NATIVE) {
             // Ensure neither the token nor the identifier parameters are set.
@@ -101,36 +96,13 @@ contract Executor is Verifiers, TokenTransferrer {
             }
 
             // Transfer ERC20 tokens from the source to the recipient.
-            _transferERC20(
-                item.token,
-                from,
-                item.recipient,
-                item.amount,
-                conduitKey,
-                accumulator
-            );
+            _transferERC20(item.token, from, item.recipient, item.amount, conduitKey, accumulator);
         } else if (item.itemType == ItemType.ERC721) {
             // Transfer ERC721 token from the source to the recipient.
-            _transferERC721(
-                item.token,
-                from,
-                item.recipient,
-                item.identifier,
-                item.amount,
-                conduitKey,
-                accumulator
-            );
+            _transferERC721(item.token, from, item.recipient, item.identifier, item.amount, conduitKey, accumulator);
         } else {
             // Transfer ERC1155 token from the source to the recipient.
-            _transferERC1155(
-                item.token,
-                from,
-                item.recipient,
-                item.identifier,
-                item.amount,
-                conduitKey,
-                accumulator
-            );
+            _transferERC1155(item.token, from, item.recipient, item.identifier, item.amount, conduitKey, accumulator);
         }
     }
 
@@ -141,10 +113,7 @@ contract Executor is Verifiers, TokenTransferrer {
      * @param to     The recipient of the transfer.
      * @param amount The amount to transfer.
      */
-    function _transferNativeTokens(
-        address payable to,
-        uint256 amount
-    ) internal {
+    function _transferNativeTokens(address payable to, uint256 amount) internal {
         // Ensure that the supplied amount is non-zero.
         _assertNonZeroAmount(amount);
 
@@ -168,20 +137,14 @@ contract Executor is Verifiers, TokenTransferrer {
 
                 // Write `to` and `amount` arguments.
                 mstore(NativeTokenTransferGenericFailure_error_account_ptr, to)
-                mstore(
-                    NativeTokenTransferGenericFailure_error_amount_ptr,
-                    amount
-                )
+                mstore(NativeTokenTransferGenericFailure_error_amount_ptr, amount)
 
                 // revert(abi.encodeWithSignature(
                 //     "NativeTokenTransferGenericFailure(address,uint256)",
                 //     to,
                 //     amount
                 // ))
-                revert(
-                    Error_selector_offset,
-                    NativeTokenTransferGenericFailure_error_length
-                )
+                revert(Error_selector_offset, NativeTokenTransferGenericFailure_error_length)
             }
         }
     }
@@ -222,16 +185,7 @@ contract Executor is Verifiers, TokenTransferrer {
             _performERC20Transfer(token, from, to, amount);
         } else {
             // Insert the call to the conduit into the accumulator.
-            _insert(
-                conduitKey,
-                accumulator,
-                ConduitItemType.ERC20,
-                token,
-                from,
-                to,
-                uint256(0),
-                amount
-            );
+            _insert(conduitKey, accumulator, ConduitItemType.ERC20, token, from, to, uint256(0), amount);
         }
     }
 
@@ -275,16 +229,7 @@ contract Executor is Verifiers, TokenTransferrer {
             _performERC721Transfer(token, from, to, identifier);
         } else {
             // Insert the call to the conduit into the accumulator.
-            _insert(
-                conduitKey,
-                accumulator,
-                ConduitItemType.ERC721,
-                token,
-                from,
-                to,
-                identifier,
-                amount
-            );
+            _insert(conduitKey, accumulator, ConduitItemType.ERC721, token, from, to, identifier, amount);
         }
     }
 
@@ -326,16 +271,7 @@ contract Executor is Verifiers, TokenTransferrer {
             _performERC1155Transfer(token, from, to, identifier, amount);
         } else {
             // Insert the call to the conduit into the accumulator.
-            _insert(
-                conduitKey,
-                accumulator,
-                ConduitItemType.ERC1155,
-                token,
-                from,
-                to,
-                identifier,
-                amount
-            );
+            _insert(conduitKey, accumulator, ConduitItemType.ERC1155, token, from, to, identifier, amount);
         }
     }
 
@@ -352,10 +288,7 @@ contract Executor is Verifiers, TokenTransferrer {
      *                    signifies that no conduit should be used, with direct
      *                    approvals set on this contract.
      */
-    function _triggerIfArmedAndNotAccumulatable(
-        bytes memory accumulator,
-        bytes32 conduitKey
-    ) internal {
+    function _triggerIfArmedAndNotAccumulatable(bytes memory accumulator, bytes32 conduitKey) internal {
         // Retrieve the current conduit key from the accumulator.
         bytes32 accumulatorConduitKey = _getAccumulatorConduitKey(accumulator);
 
@@ -410,13 +343,11 @@ contract Executor is Verifiers, TokenTransferrer {
             callDataOffset := add(accumulator, TwoWords)
 
             // 68 + items * 192
-            callDataSize := add(
-                Accumulator_array_offset_ptr,
-                mul(
-                    mload(add(accumulator, Accumulator_array_length_ptr)),
-                    Conduit_transferItem_size
+            callDataSize :=
+                add(
+                    Accumulator_array_offset_ptr,
+                    mul(mload(add(accumulator, Accumulator_array_length_ptr)), Conduit_transferItem_size)
                 )
-            )
         }
 
         // Call conduit derived from conduit key & supply accumulated transfers.
@@ -440,11 +371,7 @@ contract Executor is Verifiers, TokenTransferrer {
      * @param callDataOffset The memory pointer where calldata is contained.
      * @param callDataSize   The size of calldata in memory.
      */
-    function _callConduitUsingOffsets(
-        bytes32 conduitKey,
-        uint256 callDataOffset,
-        uint256 callDataSize
-    ) internal {
+    function _callConduitUsingOffsets(bytes32 conduitKey, uint256 callDataOffset, uint256 callDataSize) internal {
         // Derive the address of the conduit using the conduit key.
         address conduit = _deriveConduit(conduitKey);
 
@@ -457,15 +384,7 @@ contract Executor is Verifiers, TokenTransferrer {
             mstore(0, 0)
 
             // Perform call, placing first word of return data in scratch space.
-            success := call(
-                gas(),
-                conduit,
-                0,
-                callDataOffset,
-                callDataSize,
-                0,
-                OneWord
-            )
+            success := call(gas(), conduit, 0, callDataOffset, callDataSize, 0, OneWord)
 
             // Take value from scratch space and place it on the stack.
             result := mload(0)
@@ -496,14 +415,14 @@ contract Executor is Verifiers, TokenTransferrer {
      * @return accumulatorConduitKey The conduit key currently set for the
      *                               accumulator.
      */
-    function _getAccumulatorConduitKey(
-        bytes memory accumulator
-    ) internal pure returns (bytes32 accumulatorConduitKey) {
+    function _getAccumulatorConduitKey(bytes memory accumulator)
+        internal
+        pure
+        returns (bytes32 accumulatorConduitKey)
+    {
         // Retrieve the current conduit key from the accumulator.
         assembly {
-            accumulatorConduitKey := mload(
-                add(accumulator, Accumulator_conduitKey_ptr)
-            )
+            accumulatorConduitKey := mload(add(accumulator, Accumulator_conduitKey_ptr))
         }
     }
 
@@ -545,37 +464,26 @@ contract Executor is Verifiers, TokenTransferrer {
                 mstore(accumulator, AccumulatorArmed) // "arm" the accumulator.
                 mstore(add(accumulator, Accumulator_conduitKey_ptr), conduitKey)
                 mstore(add(accumulator, Accumulator_selector_ptr), selector)
-                mstore(
-                    add(accumulator, Accumulator_array_offset_ptr),
-                    Accumulator_array_offset
-                )
+                mstore(add(accumulator, Accumulator_array_offset_ptr), Accumulator_array_offset)
                 mstore(add(accumulator, Accumulator_array_length_ptr), elements)
             }
         } else {
             // Otherwise, increase the number of elements by one.
             assembly {
-                elements := add(
-                    mload(add(accumulator, Accumulator_array_length_ptr)),
-                    1
-                )
+                elements := add(mload(add(accumulator, Accumulator_array_length_ptr)), 1)
                 mstore(add(accumulator, Accumulator_array_length_ptr), elements)
             }
         }
 
         // Insert the item.
         assembly {
-            let itemPointer := sub(
-                add(accumulator, mul(elements, Conduit_transferItem_size)),
-                Accumulator_itemSizeOffsetDifference
-            )
+            let itemPointer :=
+                sub(add(accumulator, mul(elements, Conduit_transferItem_size)), Accumulator_itemSizeOffsetDifference)
             mstore(itemPointer, itemType)
             mstore(add(itemPointer, Conduit_transferItem_token_ptr), token)
             mstore(add(itemPointer, Conduit_transferItem_from_ptr), from)
             mstore(add(itemPointer, Conduit_transferItem_to_ptr), to)
-            mstore(
-                add(itemPointer, Conduit_transferItem_identifier_ptr),
-                identifier
-            )
+            mstore(add(itemPointer, Conduit_transferItem_identifier_ptr), identifier)
             mstore(add(itemPointer, Conduit_transferItem_amount_ptr), amount)
         }
     }

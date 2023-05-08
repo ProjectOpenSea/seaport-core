@@ -1,15 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.17;
 
-import { OrderParameters } from "./ConsiderationStructs.sol";
+import {OrderParameters} from "seaport-types/lib/ConsiderationStructs.sol";
 
-import { GettersAndDerivers } from "./GettersAndDerivers.sol";
+import {GettersAndDerivers} from "./GettersAndDerivers.sol";
 
-import {
-    TokenTransferrerErrors
-} from "../interfaces/TokenTransferrerErrors.sol";
+import {TokenTransferrerErrors} from "seaport-types/interfaces/TokenTransferrerErrors.sol";
 
-import { CounterManager } from "./CounterManager.sol";
+import {CounterManager} from "./CounterManager.sol";
 
 import {
     AdditionalRecipient_size_shift,
@@ -27,18 +25,18 @@ import {
     BasicOrder_signature_cdPtr,
     BasicOrder_signature_ptr,
     BasicOrder_zone_cdPtr
-} from "./ConsiderationConstants.sol";
+} from "seaport-types/lib/ConsiderationConstants.sol";
 
 import {
     Error_selector_offset,
     MissingItemAmount_error_length,
     MissingItemAmount_error_selector
-} from "./ConsiderationErrorConstants.sol";
+} from "seaport-types/lib/ConsiderationErrorConstants.sol";
 
 import {
     _revertInvalidBasicOrderParameterEncoding,
     _revertMissingOriginalConsiderationItems
-} from "./ConsiderationErrors.sol";
+} from "seaport-types/lib/ConsiderationErrors.sol";
 
 /**
  * @title Assertions
@@ -46,11 +44,7 @@ import {
  * @notice Assertions contains logic for making various assertions that do not
  *         fit neatly within a dedicated semantic scope.
  */
-contract Assertions is
-    GettersAndDerivers,
-    CounterManager,
-    TokenTransferrerErrors
-{
+contract Assertions is GettersAndDerivers, CounterManager, TokenTransferrerErrors {
     /**
      * @dev Derive and set hashes, reference chainId, and associated domain
      *      separator during deployment.
@@ -59,9 +53,7 @@ contract Assertions is
      *                          that may optionally be used to transfer approved
      *                          ERC20/721/1155 tokens.
      */
-    constructor(
-        address conduitController
-    ) GettersAndDerivers(conduitController) {}
+    constructor(address conduitController) GettersAndDerivers(conduitController) {}
 
     /**
      * @dev Internal view function to ensure that the supplied consideration
@@ -74,21 +66,18 @@ contract Assertions is
      *
      * @return The hash.
      */
-    function _assertConsiderationLengthAndGetOrderHash(
-        OrderParameters memory orderParameters
-    ) internal view returns (bytes32) {
+    function _assertConsiderationLengthAndGetOrderHash(OrderParameters memory orderParameters)
+        internal
+        view
+        returns (bytes32)
+    {
         // Ensure supplied consideration array length is not less than original.
         _assertConsiderationLengthIsNotLessThanOriginalConsiderationLength(
-            orderParameters.consideration.length,
-            orderParameters.totalOriginalConsiderationItems
+            orderParameters.consideration.length, orderParameters.totalOriginalConsiderationItems
         );
 
         // Derive and return order hash using current counter for the offerer.
-        return
-            _deriveOrderHash(
-                orderParameters,
-                _getCounter(orderParameters.offerer)
-            );
+        return _deriveOrderHash(orderParameters, _getCounter(orderParameters.offerer));
     }
 
     /**
@@ -153,71 +142,63 @@ contract Assertions is
              * 5. Offerer, zone, offer token, and consideration token have no
              *    upper dirty bits — each argument is type(uint160).max or less
              */
-            validOffsets := and(
+            validOffsets :=
                 and(
                     and(
-                        // Order parameters at cd 0x04 must have offset of 0x20.
-                        eq(
-                            calldataload(BasicOrder_parameters_cdPtr),
-                            BasicOrder_parameters_ptr
+                        and(
+                            // Order parameters at cd 0x04 must have offset of 0x20.
+                            eq(calldataload(BasicOrder_parameters_cdPtr), BasicOrder_parameters_ptr),
+                            // Additional recipients (cd 0x224) arr offset == 0x240.
+                            eq(
+                                calldataload(BasicOrder_additionalRecipients_head_cdPtr),
+                                BasicOrder_additionalRecipients_head_ptr
+                            )
                         ),
-                        // Additional recipients (cd 0x224) arr offset == 0x240.
+                        // Signature offset == 0x260 + (recipients.length * 0x40).
                         eq(
-                            calldataload(
-                                BasicOrder_additionalRecipients_head_cdPtr
-                            ),
-                            BasicOrder_additionalRecipients_head_ptr
-                        )
-                    ),
-                    // Signature offset == 0x260 + (recipients.length * 0x40).
-                    eq(
-                        // Load signature offset from calldata 0x244.
-                        calldataload(BasicOrder_signature_cdPtr),
-                        // Expected offset is start of recipients + len * 64.
-                        add(
-                            BasicOrder_signature_ptr,
-                            shl(
-                                // Each additional recipient has length of 0x40.
-                                AdditionalRecipient_size_shift,
-                                // Additional recipients length at cd 0x264.
-                                calldataload(
-                                    BasicOrder_additionalRecipients_length_cdPtr
+                            // Load signature offset from calldata 0x244.
+                            calldataload(BasicOrder_signature_cdPtr),
+                            // Expected offset is start of recipients + len * 64.
+                            add(
+                                BasicOrder_signature_ptr,
+                                shl(
+                                    // Each additional recipient has length of 0x40.
+                                    AdditionalRecipient_size_shift,
+                                    // Additional recipients length at cd 0x264.
+                                    calldataload(BasicOrder_additionalRecipients_length_cdPtr)
                                 )
                             )
                         )
-                    )
-                ),
-                and(
-                    // Ensure BasicOrderType parameter is less than 0x18.
-                    lt(
-                        // BasicOrderType parameter at calldata offset 0x124.
-                        calldataload(BasicOrder_basicOrderType_cdPtr),
-                        // Value should be less than 24.
-                        BasicOrder_basicOrderType_range
                     ),
-                    // Ensure no dirty upper bits are present on offerer, zone,
-                    // offer token, or consideration token.
-                    lt(
-                        or(
-                            or(
-                                // Offerer parameter at calldata offset 0x84.
-                                calldataload(BasicOrder_offerer_cdPtr),
-                                // Zone parameter at calldata offset 0xa4.
-                                calldataload(BasicOrder_zone_cdPtr)
-                            ),
-                            or(
-                                // Offer token parameter at cd offset 0xc4.
-                                calldataload(BasicOrder_offerToken_cdPtr),
-                                // Consideration token parameter at offset 0x24.
-                                calldataload(
-                                    BasicOrder_considerationToken_cdPtr
-                                )
-                            )
+                    and(
+                        // Ensure BasicOrderType parameter is less than 0x18.
+                        lt(
+                            // BasicOrderType parameter at calldata offset 0x124.
+                            calldataload(BasicOrder_basicOrderType_cdPtr),
+                            // Value should be less than 24.
+                            BasicOrder_basicOrderType_range
                         ),
-                        AddressDirtyUpperBitThreshold
+                        // Ensure no dirty upper bits are present on offerer, zone,
+                        // offer token, or consideration token.
+                        lt(
+                            or(
+                                or(
+                                    // Offerer parameter at calldata offset 0x84.
+                                    calldataload(BasicOrder_offerer_cdPtr),
+                                    // Zone parameter at calldata offset 0xa4.
+                                    calldataload(BasicOrder_zone_cdPtr)
+                                ),
+                                or(
+                                    // Offer token parameter at cd offset 0xc4.
+                                    calldataload(BasicOrder_offerToken_cdPtr),
+                                    // Consideration token parameter at offset 0x24.
+                                    calldataload(BasicOrder_considerationToken_cdPtr)
+                                )
+                            ),
+                            AddressDirtyUpperBitThreshold
+                        )
                     )
                 )
-            )
         }
 
         // Revert with an error if basic order parameter offsets are invalid.

@@ -1,20 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.17;
 
-import { ReentrancyErrors } from "../interfaces/ReentrancyErrors.sol";
+import {ReentrancyErrors} from "seaport-types/interfaces/ReentrancyErrors.sol";
 
-import { LowLevelHelpers } from "./LowLevelHelpers.sol";
+import {LowLevelHelpers} from "./LowLevelHelpers.sol";
 
-import {
-    _revertInvalidMsgValue,
-    _revertNoReentrantCalls
-} from "./ConsiderationErrors.sol";
+import {_revertInvalidMsgValue, _revertNoReentrantCalls} from "seaport-types/lib/ConsiderationErrors.sol";
 
 import {
-    _ENTERED_AND_ACCEPTING_NATIVE_TOKENS,
-    _ENTERED,
-    _NOT_ENTERED
-} from "./ConsiderationConstants.sol";
+    _ENTERED_AND_ACCEPTING_NATIVE_TOKENS, _ENTERED, _NOT_ENTERED
+} from "seaport-types/lib/ConsiderationConstants.sol";
 
 /**
  * @title ReentrancyGuard
@@ -66,7 +61,7 @@ contract ReentrancyGuard is ReentrancyErrors, LowLevelHelpers {
 
     /**
      * @dev Internal view function to ensure that a sentinel value for the
-            reentrancy guard is not currently set.
+     *         reentrancy guard is not currently set.
      */
     function _assertNonReentrant() internal view {
         // Ensure that the reentrancy guard is not currently set.
