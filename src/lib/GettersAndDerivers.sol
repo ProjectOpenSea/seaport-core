@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.17;
 
-import {OrderParameters} from "seaport-types/lib/ConsiderationStructs.sol";
+import {OrderParameters} from "seaport-types/src/lib/ConsiderationStructs.sol";
 
 import {ConsiderationBase} from "./ConsiderationBase.sol";
 
@@ -31,7 +31,7 @@ import {
     OrderParameters_counter_offset,
     OrderParameters_offer_head_offset,
     TwoWords
-} from "seaport-types/lib/ConsiderationConstants.sol";
+} from "seaport-types/src/lib/ConsiderationConstants.sol";
 
 /**
  * @title GettersAndDerivers

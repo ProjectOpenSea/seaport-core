@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.17;
 
-import {Side, ItemType, OrderType} from "seaport-types/lib/ConsiderationEnums.sol";
+import {Side, ItemType, OrderType} from "seaport-types/src/lib/ConsiderationEnums.sol";
 
 import {
     AdvancedOrder,
@@ -13,7 +13,7 @@ import {
     OfferItem,
     OrderParameters,
     ReceivedItem
-} from "seaport-types/lib/ConsiderationStructs.sol";
+} from "seaport-types/src/lib/ConsiderationStructs.sol";
 
 import {OrderFulfiller} from "./OrderFulfiller.sol";
 
@@ -24,7 +24,7 @@ import {
     _revertInsufficientNativeTokensSupplied,
     _revertInvalidNativeOfferItem,
     _revertNoSpecifiedOrdersAvailable
-} from "seaport-types/lib/ConsiderationErrors.sol";
+} from "seaport-types/src/lib/ConsiderationErrors.sol";
 
 import {
     AccumulatorDisarmed,
@@ -38,7 +38,7 @@ import {
     ReceivedItem_amount_offset,
     ReceivedItem_recipient_offset,
     TwoWords
-} from "seaport-types/lib/ConsiderationConstants.sol";
+} from "seaport-types/src/lib/ConsiderationConstants.sol";
 
 /**
  * @title OrderCombiner

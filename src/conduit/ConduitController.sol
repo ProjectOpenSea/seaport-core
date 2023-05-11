@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
-import {ConduitControllerInterface} from "seaport-types/interfaces/ConduitControllerInterface.sol";
+import {ConduitControllerInterface} from "seaport-types/src/interfaces/ConduitControllerInterface.sol";
 
-import {ConduitInterface} from "seaport-types/interfaces/ConduitInterface.sol";
+import {ConduitInterface} from "seaport-types/src/interfaces/ConduitInterface.sol";
 
 import {Conduit} from "./Conduit.sol";
 

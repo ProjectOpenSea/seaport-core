@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.17;
 
-import {OrderType} from "seaport-types/lib/ConsiderationEnums.sol";
+import {OrderType} from "seaport-types/src/lib/ConsiderationEnums.sol";
 
 import {
     AdvancedOrder,
@@ -11,7 +11,7 @@ import {
     OrderComponents,
     OrderParameters,
     OrderStatus
-} from "seaport-types/lib/ConsiderationStructs.sol";
+} from "seaport-types/src/lib/ConsiderationStructs.sol";
 
 import {
     _revertBadFraction,
@@ -19,13 +19,13 @@ import {
     _revertConsiderationLengthNotEqualToTotalOriginal,
     _revertInvalidContractOrder,
     _revertPartialFillsNotEnabledForOrder
-} from "seaport-types/lib/ConsiderationErrors.sol";
+} from "seaport-types/src/lib/ConsiderationErrors.sol";
 
 import {Executor} from "./Executor.sol";
 
 import {ZoneInteraction} from "./ZoneInteraction.sol";
 
-import {MemoryPointer} from "seaport-types/helpers/PointerLibraries.sol";
+import {MemoryPointer} from "seaport-types/src/helpers/PointerLibraries.sol";
 
 import {
     AdvancedOrder_denominator_offset,
@@ -41,7 +41,7 @@ import {
     OrderStatus_filledDenominator_offset,
     OrderStatus_filledNumerator_offset,
     OrderStatus_ValidatedAndNotCancelled
-} from "seaport-types/lib/ConsiderationConstants.sol";
+} from "seaport-types/src/lib/ConsiderationConstants.sol";
 
 import {
     Error_selector_offset,
@@ -49,7 +49,7 @@ import {
     Panic_error_code_ptr,
     Panic_error_length,
     Panic_error_selector
-} from "seaport-types/lib/ConsiderationErrorConstants.sol";
+} from "seaport-types/src/lib/ConsiderationErrorConstants.sol";
 
 /**
  * @title OrderValidator

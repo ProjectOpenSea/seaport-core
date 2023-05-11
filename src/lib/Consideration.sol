@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.17;
 
-import {ConsiderationInterface} from "seaport-types/interfaces/ConsiderationInterface.sol";
+import {ConsiderationInterface} from "seaport-types/src/interfaces/ConsiderationInterface.sol";
 
 import {
     AdvancedOrder,
@@ -12,11 +12,11 @@ import {
     FulfillmentComponent,
     Order,
     OrderComponents
-} from "seaport-types/lib/ConsiderationStructs.sol";
+} from "seaport-types/src/lib/ConsiderationStructs.sol";
 
 import {OrderCombiner} from "./OrderCombiner.sol";
 
-import {CalldataStart, CalldataPointer} from "seaport-types/helpers/PointerLibraries.sol";
+import {CalldataStart, CalldataPointer} from "seaport-types/src/helpers/PointerLibraries.sol";
 
 import {
     Offset_fulfillAdvancedOrder_criteriaResolvers,
@@ -29,7 +29,7 @@ import {
     Offset_matchAdvancedOrders_fulfillments,
     Offset_matchOrders_fulfillments,
     OrderParameters_counter_offset
-} from "seaport-types/lib/ConsiderationConstants.sol";
+} from "seaport-types/src/lib/ConsiderationConstants.sol";
 
 /**
  * @title Consideration

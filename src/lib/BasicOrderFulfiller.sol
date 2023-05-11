@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.17;
 
-import {BasicOrderRouteType, ItemType, OrderType} from "seaport-types/lib/ConsiderationEnums.sol";
+import {BasicOrderRouteType, ItemType, OrderType} from "seaport-types/src/lib/ConsiderationEnums.sol";
 
-import {BasicOrderParameters} from "seaport-types/lib/ConsiderationStructs.sol";
+import {BasicOrderParameters} from "seaport-types/src/lib/ConsiderationStructs.sol";
 
 import {OrderValidator} from "./OrderValidator.sol";
 
@@ -12,7 +12,7 @@ import {
     _revertInvalidMsgValue,
     _revertInvalidERC721TransferAmount,
     _revertUnusedItemParameters
-} from "seaport-types/lib/ConsiderationErrors.sol";
+} from "seaport-types/src/lib/ConsiderationErrors.sol";
 
 import {
     AccumulatorDisarmed,
@@ -93,7 +93,7 @@ import {
     ThreeWords,
     TwoWords,
     ZeroSlot
-} from "seaport-types/lib/ConsiderationConstants.sol";
+} from "seaport-types/src/lib/ConsiderationConstants.sol";
 
 import {
     Error_selector_offset,
@@ -107,7 +107,7 @@ import {
     MissingOriginalConsiderationItems_error_selector,
     UnusedItemParameters_error_length,
     UnusedItemParameters_error_selector
-} from "seaport-types/lib/ConsiderationErrorConstants.sol";
+} from "seaport-types/src/lib/ConsiderationErrorConstants.sol";
 
 /**
  * @title BasicOrderFulfiller

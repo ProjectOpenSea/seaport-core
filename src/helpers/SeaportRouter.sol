@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
-import {SeaportRouterInterface} from "seaport-types/interfaces/SeaportRouterInterface.sol";
+import {SeaportRouterInterface} from "seaport-types/src/interfaces/SeaportRouterInterface.sol";
 
-import {SeaportInterface} from "seaport-types/interfaces/SeaportInterface.sol";
+import {SeaportInterface} from "seaport-types/src/interfaces/SeaportInterface.sol";
 
 import {ReentrancyGuard} from "../lib/ReentrancyGuard.sol";
 
@@ -12,7 +12,7 @@ import {
     CriteriaResolver,
     Execution,
     FulfillmentComponent
-} from "seaport-types/lib/ConsiderationStructs.sol";
+} from "seaport-types/src/lib/ConsiderationStructs.sol";
 
 /**
  * @title  SeaportRouter

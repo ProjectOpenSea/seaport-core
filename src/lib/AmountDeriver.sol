@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.17;
 
-import {AmountDerivationErrors} from "seaport-types/interfaces/AmountDerivationErrors.sol";
+import {AmountDerivationErrors} from "seaport-types/src/interfaces/AmountDerivationErrors.sol";
 
 import {
     Error_selector_offset,
     InexactFraction_error_length,
     InexactFraction_error_selector
-} from "seaport-types/lib/ConsiderationErrorConstants.sol";
+} from "seaport-types/src/lib/ConsiderationErrorConstants.sol";
 
 /**
  * @title AmountDeriver
