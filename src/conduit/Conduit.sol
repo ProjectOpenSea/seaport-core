@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
-import {ConduitInterface} from "seaport-types/interfaces/ConduitInterface.sol";
+import {ConduitInterface} from "seaport-types/src/interfaces/ConduitInterface.sol";
 
-import {ConduitItemType} from "seaport-types/conduit/lib/ConduitEnums.sol";
+import {ConduitItemType} from "seaport-types/src/conduit/lib/ConduitEnums.sol";
 
 import {TokenTransferrer} from "../lib/TokenTransferrer.sol";
 
-import {ConduitBatch1155Transfer, ConduitTransfer} from "seaport-types/conduit/lib/ConduitStructs.sol";
+import {ConduitBatch1155Transfer, ConduitTransfer} from "seaport-types/src/conduit/lib/ConduitStructs.sol";
 
 import {
     ChannelClosed_channel_ptr,
@@ -17,7 +17,7 @@ import {
     ChannelKey_channel_ptr,
     ChannelKey_length,
     ChannelKey_slot_ptr
-} from "seaport-types/conduit/lib/ConduitConstants.sol";
+} from "seaport-types/src/conduit/lib/ConduitConstants.sol";
 
 /**
  * @title Conduit

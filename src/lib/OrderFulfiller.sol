@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.17;
 
-import {ItemType, OrderType} from "seaport-types/lib/ConsiderationEnums.sol";
+import {ItemType, OrderType} from "seaport-types/src/lib/ConsiderationEnums.sol";
 
 import {
     AdvancedOrder,
@@ -11,7 +11,7 @@ import {
     OrderParameters,
     ReceivedItem,
     SpentItem
-} from "seaport-types/lib/ConsiderationStructs.sol";
+} from "seaport-types/src/lib/ConsiderationStructs.sol";
 
 import {BasicOrderFulfiller} from "./BasicOrderFulfiller.sol";
 
@@ -22,14 +22,14 @@ import {AmountDeriver} from "./AmountDeriver.sol";
 import {
     _revertInsufficientNativeTokensSupplied,
     _revertInvalidNativeOfferItem
-} from "seaport-types/lib/ConsiderationErrors.sol";
+} from "seaport-types/src/lib/ConsiderationErrors.sol";
 
 import {
     AccumulatorDisarmed,
     ConsiderationItem_recipient_offset,
     ReceivedItem_amount_offset,
     ReceivedItem_recipient_offset
-} from "seaport-types/lib/ConsiderationConstants.sol";
+} from "seaport-types/src/lib/ConsiderationConstants.sol";
 
 /**
  * @title OrderFulfiller

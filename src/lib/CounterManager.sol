@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.17;
 
-import {ConsiderationEventsAndErrors} from "seaport-types/interfaces/ConsiderationEventsAndErrors.sol";
+import {ConsiderationEventsAndErrors} from "seaport-types/src/interfaces/ConsiderationEventsAndErrors.sol";
 
 import {ReentrancyGuard} from "./ReentrancyGuard.sol";
 
-import {Counter_blockhash_shift, OneWord, TwoWords} from "seaport-types/lib/ConsiderationConstants.sol";
+import {Counter_blockhash_shift, OneWord, TwoWords} from "seaport-types/src/lib/ConsiderationConstants.sol";
 
 /**
  * @title CounterManager

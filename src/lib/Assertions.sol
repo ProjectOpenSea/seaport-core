@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.17;
 
-import {OrderParameters} from "seaport-types/lib/ConsiderationStructs.sol";
+import {OrderParameters} from "seaport-types/src/lib/ConsiderationStructs.sol";
 
 import {GettersAndDerivers} from "./GettersAndDerivers.sol";
 
-import {TokenTransferrerErrors} from "seaport-types/interfaces/TokenTransferrerErrors.sol";
+import {TokenTransferrerErrors} from "seaport-types/src/interfaces/TokenTransferrerErrors.sol";
 
 import {CounterManager} from "./CounterManager.sol";
 
@@ -25,18 +25,18 @@ import {
     BasicOrder_signature_cdPtr,
     BasicOrder_signature_ptr,
     BasicOrder_zone_cdPtr
-} from "seaport-types/lib/ConsiderationConstants.sol";
+} from "seaport-types/src/lib/ConsiderationConstants.sol";
 
 import {
     Error_selector_offset,
     MissingItemAmount_error_length,
     MissingItemAmount_error_selector
-} from "seaport-types/lib/ConsiderationErrorConstants.sol";
+} from "seaport-types/src/lib/ConsiderationErrorConstants.sol";
 
 import {
     _revertInvalidBasicOrderParameterEncoding,
     _revertMissingOriginalConsiderationItems
-} from "seaport-types/lib/ConsiderationErrors.sol";
+} from "seaport-types/src/lib/ConsiderationErrors.sol";
 
 /**
  * @title Assertions

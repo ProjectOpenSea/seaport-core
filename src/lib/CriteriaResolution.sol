@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.17;
 
-import {ItemType, Side} from "seaport-types/lib/ConsiderationEnums.sol";
+import {ItemType, Side} from "seaport-types/src/lib/ConsiderationEnums.sol";
 
 import {
     AdvancedOrder,
@@ -9,7 +9,7 @@ import {
     MemoryPointer,
     OfferItem,
     OrderParameters
-} from "seaport-types/lib/ConsiderationStructs.sol";
+} from "seaport-types/src/lib/ConsiderationStructs.sol";
 
 import {
     _revertCriteriaNotEnabledForItem,
@@ -17,9 +17,9 @@ import {
     _revertOrderCriteriaResolverOutOfRange,
     _revertUnresolvedConsiderationCriteria,
     _revertUnresolvedOfferCriteria
-} from "seaport-types/lib/ConsiderationErrors.sol";
+} from "seaport-types/src/lib/ConsiderationErrors.sol";
 
-import {CriteriaResolutionErrors} from "seaport-types/interfaces/CriteriaResolutionErrors.sol";
+import {CriteriaResolutionErrors} from "seaport-types/src/interfaces/CriteriaResolutionErrors.sol";
 
 import {
     OneWord,
@@ -27,13 +27,13 @@ import {
     OrderParameters_consideration_head_offset,
     Selector_length,
     TwoWords
-} from "seaport-types/lib/ConsiderationConstants.sol";
+} from "seaport-types/src/lib/ConsiderationConstants.sol";
 
 import {
     ConsiderationCriteriaResolverOutOfRange_err_selector,
     Error_selector_offset,
     OfferCriteriaResolverOutOfRange_error_selector
-} from "seaport-types/lib/ConsiderationErrorConstants.sol";
+} from "seaport-types/src/lib/ConsiderationErrorConstants.sol";
 
 /**
  * @title CriteriaResolution

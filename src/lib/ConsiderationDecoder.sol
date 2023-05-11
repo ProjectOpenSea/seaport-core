@@ -11,7 +11,7 @@ import {
     Order,
     OrderParameters,
     ReceivedItem
-} from "seaport-types/lib/ConsiderationStructs.sol";
+} from "seaport-types/src/lib/ConsiderationStructs.sol";
 
 import {
     AdvancedOrder_denominator_offset,
@@ -54,9 +54,9 @@ import {
     SpentItem_size,
     ThirtyOneBytes,
     TwoWords
-} from "seaport-types/lib/ConsiderationConstants.sol";
+} from "seaport-types/src/lib/ConsiderationConstants.sol";
 
-import {CalldataPointer, malloc, MemoryPointer, OffsetOrLengthMask} from "seaport-types/helpers/PointerLibraries.sol";
+import {CalldataPointer, malloc, MemoryPointer, OffsetOrLengthMask} from "seaport-types/src/helpers/PointerLibraries.sol";
 
 contract ConsiderationDecoder {
     /**

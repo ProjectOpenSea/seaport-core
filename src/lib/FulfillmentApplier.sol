@@ -1,19 +1,19 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.17;
 
-import {ItemType, Side} from "seaport-types/lib/ConsiderationEnums.sol";
+import {ItemType, Side} from "seaport-types/src/lib/ConsiderationEnums.sol";
 
 import {
     AdvancedOrder, Execution, FulfillmentComponent, ReceivedItem
-} from "seaport-types/lib/ConsiderationStructs.sol";
+} from "seaport-types/src/lib/ConsiderationStructs.sol";
 
 import {
     _revertMismatchedFulfillmentOfferAndConsiderationComponents,
     _revertMissingFulfillmentComponentOnAggregation,
     _revertOfferAndConsiderationRequiredOnFulfillment
-} from "seaport-types/lib/ConsiderationErrors.sol";
+} from "seaport-types/src/lib/ConsiderationErrors.sol";
 
-import {FulfillmentApplicationErrors} from "seaport-types/interfaces/FulfillmentApplicationErrors.sol";
+import {FulfillmentApplicationErrors} from "seaport-types/src/interfaces/FulfillmentApplicationErrors.sol";
 
 import {
     AdvancedOrder_numerator_offset,
@@ -31,7 +31,7 @@ import {
     ReceivedItem_CommonParams_size,
     ReceivedItem_recipient_offset,
     ReceivedItem_size
-} from "seaport-types/lib/ConsiderationConstants.sol";
+} from "seaport-types/src/lib/ConsiderationConstants.sol";
 
 import {
     Error_selector_offset,
@@ -43,7 +43,7 @@ import {
     Panic_error_code_ptr,
     Panic_error_length,
     Panic_error_selector
-} from "seaport-types/lib/ConsiderationErrorConstants.sol";
+} from "seaport-types/src/lib/ConsiderationErrorConstants.sol";
 
 /**
  * @title FulfillmentApplier

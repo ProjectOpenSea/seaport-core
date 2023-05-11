@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.17;
 
-import {OrderStatus} from "seaport-types/lib/ConsiderationStructs.sol";
+import {OrderStatus} from "seaport-types/src/lib/ConsiderationStructs.sol";
 
 import {Assertions} from "./Assertions.sol";
 
@@ -12,7 +12,7 @@ import {
     _revertOrderAlreadyFilled,
     _revertOrderIsCancelled,
     _revertOrderPartiallyFilled
-} from "seaport-types/lib/ConsiderationErrors.sol";
+} from "seaport-types/src/lib/ConsiderationErrors.sol";
 
 import {
     BulkOrderProof_keyShift,
@@ -26,7 +26,7 @@ import {
     OneWordShift,
     ThirtyOneBytes,
     TwoWords
-} from "seaport-types/lib/ConsiderationConstants.sol";
+} from "seaport-types/src/lib/ConsiderationConstants.sol";
 
 /**
  * @title Verifiers

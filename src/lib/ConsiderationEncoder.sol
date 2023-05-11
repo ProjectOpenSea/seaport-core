@@ -55,11 +55,11 @@ import {
     ZoneParameters_selectorAndPointer_length,
     ZoneParameters_startTime_offset,
     ZoneParameters_zoneHash_offset
-} from "seaport-types/lib/ConsiderationConstants.sol";
+} from "seaport-types/src/lib/ConsiderationConstants.sol";
 
-import {BasicOrderParameters, OrderParameters} from "seaport-types/lib/ConsiderationStructs.sol";
+import {BasicOrderParameters, OrderParameters} from "seaport-types/src/lib/ConsiderationStructs.sol";
 
-import {CalldataPointer, getFreeMemoryPointer, MemoryPointer} from "seaport-types/helpers/PointerLibraries.sol";
+import {CalldataPointer, getFreeMemoryPointer, MemoryPointer} from "seaport-types/src/helpers/PointerLibraries.sol";
 
 contract ConsiderationEncoder {
     /**
