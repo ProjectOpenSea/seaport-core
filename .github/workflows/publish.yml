@@ -11,7 +11,6 @@ jobs:
         with:
           node-version: "16.x"
           registry-url: "https://registry.npmjs.org"
-      - run: grep -RiIln 'seaport-types' src | xargs sed -i 's/seaport\-types/seaport\-types\/src/g'
       - run: yarn
       - run: npm publish --access public
         env:
