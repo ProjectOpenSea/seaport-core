@@ -12,5 +12,8 @@
     "src",
     "LICENSE",
     "README.md"
-]
+  ],
+  "dependencies": {
+    "seaport-types": "^0.0.1"
+  }
 }
