@@ -77,13 +77,11 @@ import {
     TwoWords,
     TwoWordsShift,
     ZeroSlot
-} from "./TokenTransferrerConstants.sol";
+} from "seaport-types/src/lib/TokenTransferrerConstants.sol";
 
-import {
-    TokenTransferrerErrors
-} from "../interfaces/TokenTransferrerErrors.sol";
+import {TokenTransferrerErrors} from "seaport-types/src/interfaces/TokenTransferrerErrors.sol";
 
-import { ConduitBatch1155Transfer } from "../conduit/lib/ConduitStructs.sol";
+import {ConduitBatch1155Transfer} from "seaport-types/src/conduit/lib/ConduitStructs.sol";
 
 /**
  * @title TokenTransferrer
@@ -108,12 +106,7 @@ contract TokenTransferrer is TokenTransferrerErrors {
      * @param to         The recipient of the transfer.
      * @param amount     The amount to transfer.
      */
-    function _performERC20Transfer(
-        address token,
-        address from,
-        address to,
-        uint256 amount
-    ) internal {
+    function _performERC20Transfer(address token, address from, address to, uint256 amount) internal {
         // Utilize assembly to perform an optimized ERC20 token transfer.
         assembly {
             // The free memory pointer memory slot will be used when populating
@@ -132,27 +125,17 @@ contract TokenTransferrer is TokenTransferrerErrors {
             // return data is received (in which case it will be overwritten) or
             // that no data is received (in which case scratch space will be
             // ignored) on a successful call to the given token.
-            let callStatus := call(
-                gas(),
-                token,
-                0,
-                ERC20_transferFrom_sig_ptr,
-                ERC20_transferFrom_length,
-                0,
-                OneWord
-            )
+            let callStatus := call(gas(), token, 0, ERC20_transferFrom_sig_ptr, ERC20_transferFrom_length, 0, OneWord)
 
             // Determine whether transfer was successful using status & result.
-            let success := and(
-                // Set success to whether the call reverted, if not check it
-                // either returned exactly 1 (can't just be non-zero data), or
-                // had no return data.
-                or(
-                    and(eq(mload(0), 1), gt(returndatasize(), 31)),
-                    iszero(returndatasize())
-                ),
-                callStatus
-            )
+            let success :=
+                and(
+                    // Set success to whether the call reverted, if not check it
+                    // either returned exactly 1 (can't just be non-zero data), or
+                    // had no return data.
+                    or(and(eq(mload(0), 1), gt(returndatasize(), 31)), iszero(returndatasize())),
+                    callStatus
+                )
 
             // Handle cases where either the transfer failed or no data was
             // returned. Group these, as most transfers will succeed with data.
@@ -175,10 +158,7 @@ contract TokenTransferrer is TokenTransferrerErrors {
                                 // necessary. Start by computing the word size
                                 // of returndata and allocated memory. Round up
                                 // to the nearest full word.
-                                let returnDataWords := shr(
-                                    OneWordShift,
-                                    add(returndatasize(), ThirtyOneBytes)
-                                )
+                                let returnDataWords := shr(OneWordShift, add(returndatasize(), ThirtyOneBytes))
 
                                 // Note: use the free memory pointer in place of
                                 // msize() to work around a Yul warning that
@@ -191,28 +171,17 @@ contract TokenTransferrer is TokenTransferrerErrors {
 
                                 // Then, compute cost of new memory allocation.
                                 if gt(returnDataWords, msizeWords) {
-                                    cost := add(
-                                        cost,
+                                    cost :=
                                         add(
-                                            mul(
-                                                sub(
-                                                    returnDataWords,
-                                                    msizeWords
-                                                ),
-                                                CostPerWord
-                                            ),
-                                            shr(
-                                                MemoryExpansionCoefficientShift,
-                                                sub(
-                                                    mul(
-                                                        returnDataWords,
-                                                        returnDataWords
-                                                    ),
-                                                    mul(msizeWords, msizeWords)
+                                            cost,
+                                            add(
+                                                mul(sub(returnDataWords, msizeWords), CostPerWord),
+                                                shr(
+                                                    MemoryExpansionCoefficientShift,
+                                                    sub(mul(returnDataWords, returnDataWords), mul(msizeWords, msizeWords))
                                                 )
                                             )
                                         )
-                                    )
                                 }
 
                                 // Finally, add a small constant and compare to
@@ -230,73 +199,37 @@ contract TokenTransferrer is TokenTransferrerErrors {
                             }
 
                             // Store left-padded selector with push4, mem[28:32]
-                            mstore(
-                                0,
-                                TokenTransferGenericFailure_error_selector
-                            )
-                            mstore(
-                                TokenTransferGenericFailure_error_token_ptr,
-                                token
-                            )
-                            mstore(
-                                TokenTransferGenericFailure_error_from_ptr,
-                                from
-                            )
+                            mstore(0, TokenTransferGenericFailure_error_selector)
+                            mstore(TokenTransferGenericFailure_error_token_ptr, token)
+                            mstore(TokenTransferGenericFailure_error_from_ptr, from)
                             mstore(TokenTransferGenericFailure_error_to_ptr, to)
-                            mstore(
-                                TokenTransferGenericFailure_err_identifier_ptr,
-                                0
-                            )
-                            mstore(
-                                TokenTransferGenericFailure_error_amount_ptr,
-                                amount
-                            )
+                            mstore(TokenTransferGenericFailure_err_identifier_ptr, 0)
+                            mstore(TokenTransferGenericFailure_error_amount_ptr, amount)
 
                             // revert(abi.encodeWithSignature(
                             //     "TokenTransferGenericFailure(
                             //         address,address,address,uint256,uint256
                             //     )", token, from, to, identifier, amount
                             // ))
-                            revert(
-                                Generic_error_selector_offset,
-                                TokenTransferGenericFailure_error_length
-                            )
+                            revert(Generic_error_selector_offset, TokenTransferGenericFailure_error_length)
                         }
 
                         // Otherwise revert with a message about the token
                         // returning false or non-compliant return values.
 
                         // Store left-padded selector with push4, mem[28:32]
-                        mstore(
-                            0,
-                            BadReturnValueFromERC20OnTransfer_error_selector
-                        )
-                        mstore(
-                            BadReturnValueFromERC20OnTransfer_error_token_ptr,
-                            token
-                        )
-                        mstore(
-                            BadReturnValueFromERC20OnTransfer_error_from_ptr,
-                            from
-                        )
-                        mstore(
-                            BadReturnValueFromERC20OnTransfer_error_to_ptr,
-                            to
-                        )
-                        mstore(
-                            BadReturnValueFromERC20OnTransfer_error_amount_ptr,
-                            amount
-                        )
+                        mstore(0, BadReturnValueFromERC20OnTransfer_error_selector)
+                        mstore(BadReturnValueFromERC20OnTransfer_error_token_ptr, token)
+                        mstore(BadReturnValueFromERC20OnTransfer_error_from_ptr, from)
+                        mstore(BadReturnValueFromERC20OnTransfer_error_to_ptr, to)
+                        mstore(BadReturnValueFromERC20OnTransfer_error_amount_ptr, amount)
 
                         // revert(abi.encodeWithSignature(
                         //     "BadReturnValueFromERC20OnTransfer(
                         //         address,address,address,uint256
                         //     )", token, from, to, amount
                         // ))
-                        revert(
-                            Generic_error_selector_offset,
-                            BadReturnValueFromERC20OnTransfer_error_length
-                        )
+                        revert(Generic_error_selector_offset, BadReturnValueFromERC20OnTransfer_error_length)
                     }
 
                     // Otherwise, revert with error about token not having code:
@@ -307,10 +240,7 @@ contract TokenTransferrer is TokenTransferrerErrors {
                     // revert(abi.encodeWithSignature(
                     //      "NoContract(address)", account
                     // ))
-                    revert(
-                        Generic_error_selector_offset,
-                        NoContract_error_length
-                    )
+                    revert(Generic_error_selector_offset, NoContract_error_length)
                 }
 
                 // Otherwise, the token just returned no data despite the call
@@ -338,12 +268,7 @@ contract TokenTransferrer is TokenTransferrerErrors {
      * @param to         The recipient of the transfer.
      * @param identifier The tokenId to transfer.
      */
-    function _performERC721Transfer(
-        address token,
-        address from,
-        address to,
-        uint256 identifier
-    ) internal {
+    function _performERC721Transfer(address token, address from, address to, uint256 identifier) internal {
         // Utilize assembly to perform an optimized ERC721 token transfer.
         assembly {
             // If the token has no code, revert.
@@ -369,15 +294,7 @@ contract TokenTransferrer is TokenTransferrerErrors {
             mstore(ERC721_transferFrom_id_ptr, identifier)
 
             // Perform the call, ignoring return data.
-            let success := call(
-                gas(),
-                token,
-                0,
-                ERC721_transferFrom_sig_ptr,
-                ERC721_transferFrom_length,
-                0,
-                0
-            )
+            let success := call(gas(), token, 0, ERC721_transferFrom_sig_ptr, ERC721_transferFrom_length, 0, 0)
 
             // If the transfer reverted:
             if iszero(success) {
@@ -388,10 +305,7 @@ contract TokenTransferrer is TokenTransferrerErrors {
                     // returndata while expanding memory where necessary. Start
                     // by computing word size of returndata & allocated memory.
                     // Round up to the nearest full word.
-                    let returnDataWords := shr(
-                        OneWordShift,
-                        add(returndatasize(), ThirtyOneBytes)
-                    )
+                    let returnDataWords := shr(OneWordShift, add(returndatasize(), ThirtyOneBytes))
 
                     // Note: use the free memory pointer in place of msize() to
                     // work around a Yul warning that prevents accessing msize
@@ -403,22 +317,17 @@ contract TokenTransferrer is TokenTransferrerErrors {
 
                     // Then, compute cost of new memory allocation.
                     if gt(returnDataWords, msizeWords) {
-                        cost := add(
-                            cost,
+                        cost :=
                             add(
-                                mul(
-                                    sub(returnDataWords, msizeWords),
-                                    CostPerWord
-                                ),
-                                shr(
-                                    MemoryExpansionCoefficientShift,
-                                    sub(
-                                        mul(returnDataWords, returnDataWords),
-                                        mul(msizeWords, msizeWords)
+                                cost,
+                                add(
+                                    mul(sub(returnDataWords, msizeWords), CostPerWord),
+                                    shr(
+                                        MemoryExpansionCoefficientShift,
+                                        sub(mul(returnDataWords, returnDataWords), mul(msizeWords, msizeWords))
                                     )
                                 )
                             )
-                        )
                     }
 
                     // Finally, add a small constant and compare to gas
@@ -439,10 +348,7 @@ contract TokenTransferrer is TokenTransferrerErrors {
                 mstore(TokenTransferGenericFailure_error_token_ptr, token)
                 mstore(TokenTransferGenericFailure_error_from_ptr, from)
                 mstore(TokenTransferGenericFailure_error_to_ptr, to)
-                mstore(
-                    TokenTransferGenericFailure_error_identifier_ptr,
-                    identifier
-                )
+                mstore(TokenTransferGenericFailure_error_identifier_ptr, identifier)
                 mstore(TokenTransferGenericFailure_error_amount_ptr, 1)
 
                 // revert(abi.encodeWithSignature(
@@ -450,10 +356,7 @@ contract TokenTransferrer is TokenTransferrerErrors {
                 //         address,address,address,uint256,uint256
                 //     )", token, from, to, identifier, amount
                 // ))
-                revert(
-                    Generic_error_selector_offset,
-                    TokenTransferGenericFailure_error_length
-                )
+                revert(Generic_error_selector_offset, TokenTransferGenericFailure_error_length)
             }
 
             // Restore the original free memory pointer.
@@ -477,13 +380,9 @@ contract TokenTransferrer is TokenTransferrerErrors {
      * @param identifier The id to transfer.
      * @param amount     The amount to transfer.
      */
-    function _performERC1155Transfer(
-        address token,
-        address from,
-        address to,
-        uint256 identifier,
-        uint256 amount
-    ) internal {
+    function _performERC1155Transfer(address token, address from, address to, uint256 identifier, uint256 amount)
+        internal
+    {
         // Utilize assembly to perform an optimized ERC1155 token transfer.
         assembly {
             // If the token has no code, revert.
@@ -506,30 +405,17 @@ contract TokenTransferrer is TokenTransferrerErrors {
             let slot0xC0 := mload(Slot0xC0)
 
             // Write call data into memory, beginning with function selector.
-            mstore(
-                ERC1155_safeTransferFrom_sig_ptr,
-                ERC1155_safeTransferFrom_signature
-            )
+            mstore(ERC1155_safeTransferFrom_sig_ptr, ERC1155_safeTransferFrom_signature)
             mstore(ERC1155_safeTransferFrom_from_ptr, from)
             mstore(ERC1155_safeTransferFrom_to_ptr, to)
             mstore(ERC1155_safeTransferFrom_id_ptr, identifier)
             mstore(ERC1155_safeTransferFrom_amount_ptr, amount)
-            mstore(
-                ERC1155_safeTransferFrom_data_offset_ptr,
-                ERC1155_safeTransferFrom_data_length_offset
-            )
+            mstore(ERC1155_safeTransferFrom_data_offset_ptr, ERC1155_safeTransferFrom_data_length_offset)
             mstore(ERC1155_safeTransferFrom_data_length_ptr, 0)
 
             // Perform the call, ignoring return data.
-            let success := call(
-                gas(),
-                token,
-                0,
-                ERC1155_safeTransferFrom_sig_ptr,
-                ERC1155_safeTransferFrom_length,
-                0,
-                0
-            )
+            let success :=
+                call(gas(), token, 0, ERC1155_safeTransferFrom_sig_ptr, ERC1155_safeTransferFrom_length, 0, 0)
 
             // If the transfer reverted:
             if iszero(success) {
@@ -540,10 +426,7 @@ contract TokenTransferrer is TokenTransferrerErrors {
                     // returndata while expanding memory where necessary. Start
                     // by computing word size of returndata & allocated memory.
                     // Round up to the nearest full word.
-                    let returnDataWords := shr(
-                        OneWordShift,
-                        add(returndatasize(), ThirtyOneBytes)
-                    )
+                    let returnDataWords := shr(OneWordShift, add(returndatasize(), ThirtyOneBytes))
 
                     // Note: use the free memory pointer in place of msize() to
                     // work around a Yul warning that prevents accessing msize
@@ -555,22 +438,17 @@ contract TokenTransferrer is TokenTransferrerErrors {
 
                     // Then, compute cost of new memory allocation.
                     if gt(returnDataWords, msizeWords) {
-                        cost := add(
-                            cost,
+                        cost :=
                             add(
-                                mul(
-                                    sub(returnDataWords, msizeWords),
-                                    CostPerWord
-                                ),
-                                shr(
-                                    MemoryExpansionCoefficientShift,
-                                    sub(
-                                        mul(returnDataWords, returnDataWords),
-                                        mul(msizeWords, msizeWords)
+                                cost,
+                                add(
+                                    mul(sub(returnDataWords, msizeWords), CostPerWord),
+                                    shr(
+                                        MemoryExpansionCoefficientShift,
+                                        sub(mul(returnDataWords, returnDataWords), mul(msizeWords, msizeWords))
                                     )
                                 )
                             )
-                        )
                     }
 
                     // Finally, add a small constant and compare to gas
@@ -592,10 +470,7 @@ contract TokenTransferrer is TokenTransferrerErrors {
                 mstore(TokenTransferGenericFailure_error_token_ptr, token)
                 mstore(TokenTransferGenericFailure_error_from_ptr, from)
                 mstore(TokenTransferGenericFailure_error_to_ptr, to)
-                mstore(
-                    TokenTransferGenericFailure_error_identifier_ptr,
-                    identifier
-                )
+                mstore(TokenTransferGenericFailure_error_identifier_ptr, identifier)
                 mstore(TokenTransferGenericFailure_error_amount_ptr, amount)
 
                 // revert(abi.encodeWithSignature(
@@ -603,10 +478,7 @@ contract TokenTransferrer is TokenTransferrerErrors {
                 //         address,address,address,uint256,uint256
                 //     )", token, from, to, identifier, amount
                 // ))
-                revert(
-                    Generic_error_selector_offset,
-                    TokenTransferGenericFailure_error_length
-                )
+                revert(Generic_error_selector_offset, TokenTransferGenericFailure_error_length)
             }
 
             mstore(Slot0x80, slot0x80) // Restore slot 0x80.
@@ -636,9 +508,7 @@ contract TokenTransferrer is TokenTransferrerErrors {
      *
      * @param batchTransfers The group of 1155 batch transfers to perform.
      */
-    function _performERC1155BatchTransfers(
-        ConduitBatch1155Transfer[] calldata batchTransfers
-    ) internal {
+    function _performERC1155BatchTransfers(ConduitBatch1155Transfer[] calldata batchTransfers) internal {
         // Utilize assembly to perform optimized batch 1155 transfers.
         assembly {
             let len := batchTransfers.length
@@ -654,24 +524,14 @@ contract TokenTransferrer is TokenTransferrerErrors {
 
             // Write the function selector, which will be reused for each call:
             // safeBatchTransferFrom(address,address,uint256[],uint256[],bytes)
-            mstore(
-                ConduitBatch1155Transfer_from_offset,
-                ERC1155_safeBatchTransferFrom_signature
-            )
+            mstore(ConduitBatch1155Transfer_from_offset, ERC1155_safeBatchTransferFrom_signature)
 
             // Iterate over each batch transfer.
-            for {
-                let i := 0
-            } lt(i, len) {
-                i := add(i, 1)
-            } {
+            for { let i := 0 } lt(i, len) { i := add(i, 1) } {
                 // Read the offset to the beginning of the element and add
                 // it to pointer to the beginning of the array head to get
                 // the absolute position of the element in calldata.
-                let elementPtr := add(
-                    arrayHeadPtr,
-                    calldataload(nextElementHeadPtr)
-                )
+                let elementPtr := add(arrayHeadPtr, calldataload(nextElementHeadPtr))
 
                 // Retrieve the token from calldata.
                 let token := calldataload(elementPtr)
@@ -685,71 +545,46 @@ contract TokenTransferrer is TokenTransferrerErrors {
                     // revert(abi.encodeWithSignature(
                     //     "NoContract(address)", account
                     // ))
-                    revert(
-                        Generic_error_selector_offset,
-                        NoContract_error_length
-                    )
+                    revert(Generic_error_selector_offset, NoContract_error_length)
                 }
 
                 // Get the total number of supplied ids.
-                let idsLength := calldataload(
-                    add(elementPtr, ConduitBatch1155Transfer_ids_length_offset)
-                )
+                let idsLength := calldataload(add(elementPtr, ConduitBatch1155Transfer_ids_length_offset))
 
                 // Determine the expected offset for the amounts array.
-                let expectedAmountsOffset := add(
-                    ConduitBatch1155Transfer_amounts_length_baseOffset,
-                    shl(OneWordShift, idsLength)
-                )
+                let expectedAmountsOffset :=
+                    add(ConduitBatch1155Transfer_amounts_length_baseOffset, shl(OneWordShift, idsLength))
 
                 // Validate struct encoding.
-                let invalidEncoding := iszero(
-                    and(
-                        // ids.length == amounts.length
-                        eq(
-                            idsLength,
-                            calldataload(add(elementPtr, expectedAmountsOffset))
-                        ),
+                let invalidEncoding :=
+                    iszero(
                         and(
-                            // ids_offset == 0xa0
-                            eq(
-                                calldataload(
-                                    add(
-                                        elementPtr,
-                                        ConduitBatch1155Transfer_ids_head_offset
-                                    )
+                            // ids.length == amounts.length
+                            eq(idsLength, calldataload(add(elementPtr, expectedAmountsOffset))),
+                            and(
+                                // ids_offset == 0xa0
+                                eq(
+                                    calldataload(add(elementPtr, ConduitBatch1155Transfer_ids_head_offset)),
+                                    ConduitBatch1155Transfer_ids_length_offset
                                 ),
-                                ConduitBatch1155Transfer_ids_length_offset
-                            ),
-                            // amounts_offset == 0xc0 + ids.length*32
-                            eq(
-                                calldataload(
-                                    add(
-                                        elementPtr,
-                                        ConduitBatchTransfer_amounts_head_offset
-                                    )
-                                ),
-                                expectedAmountsOffset
+                                // amounts_offset == 0xc0 + ids.length*32
+                                eq(
+                                    calldataload(add(elementPtr, ConduitBatchTransfer_amounts_head_offset)),
+                                    expectedAmountsOffset
+                                )
                             )
                         )
                     )
-                )
 
                 // Revert with an error if the encoding is not valid.
                 if invalidEncoding {
                     // Store left-padded selector with push4, mem[28:32]
-                    mstore(
-                        Invalid1155BatchTransferEncoding_ptr,
-                        Invalid1155BatchTransferEncoding_selector
-                    )
+                    mstore(Invalid1155BatchTransferEncoding_ptr, Invalid1155BatchTransferEncoding_selector)
 
                     // revert(abi.encodeWithSignature(
                     //     "Invalid1155BatchTransferEncoding()"
                     // ))
-                    revert(
-                        Invalid1155BatchTransferEncoding_ptr,
-                        Invalid1155BatchTransferEncoding_length
-                    )
+                    revert(Invalid1155BatchTransferEncoding_ptr, Invalid1155BatchTransferEncoding_length)
                 }
 
                 // Update the offset position for the next loop
@@ -764,34 +599,19 @@ contract TokenTransferrer is TokenTransferrerErrors {
 
                 // Determine size of calldata required for ids and amounts. Note
                 // that the size includes both lengths as well as the data.
-                let idsAndAmountsSize := add(
-                    TwoWords,
-                    shl(TwoWordsShift, idsLength)
-                )
+                let idsAndAmountsSize := add(TwoWords, shl(TwoWordsShift, idsLength))
 
                 // Update the offset for the data array in memory.
                 mstore(
                     BatchTransfer1155Params_data_head_ptr,
-                    add(
-                        BatchTransfer1155Params_ids_length_offset,
-                        idsAndAmountsSize
-                    )
+                    add(BatchTransfer1155Params_ids_length_offset, idsAndAmountsSize)
                 )
 
                 // Set the length of the data array in memory to zero.
-                mstore(
-                    add(
-                        BatchTransfer1155Params_data_length_basePtr,
-                        idsAndAmountsSize
-                    ),
-                    0
-                )
+                mstore(add(BatchTransfer1155Params_data_length_basePtr, idsAndAmountsSize), 0)
 
                 // Determine the total calldata size for the call to transfer.
-                let transferDataSize := add(
-                    BatchTransfer1155Params_calldata_baseSize,
-                    idsAndAmountsSize
-                )
+                let transferDataSize := add(BatchTransfer1155Params_calldata_baseSize, idsAndAmountsSize)
 
                 // Copy second section of calldata (including dynamic values).
                 calldatacopy(
@@ -801,15 +621,16 @@ contract TokenTransferrer is TokenTransferrerErrors {
                 )
 
                 // Perform the call to transfer 1155 tokens.
-                let success := call(
-                    gas(),
-                    token,
-                    0,
-                    ConduitBatch1155Transfer_from_offset, // Data portion start.
-                    transferDataSize, // Location of the length of callData.
-                    0,
-                    0
-                )
+                let success :=
+                    call(
+                        gas(),
+                        token,
+                        0,
+                        ConduitBatch1155Transfer_from_offset, // Data portion start.
+                        transferDataSize, // Location of the length of callData.
+                        0,
+                        0
+                    )
 
                 // If the transfer reverted:
                 if iszero(success) {
@@ -820,10 +641,7 @@ contract TokenTransferrer is TokenTransferrerErrors {
                         // returndata while expanding memory where necessary.
                         // Start by computing word size of returndata and
                         // allocated memory. Round up to the nearest full word.
-                        let returnDataWords := shr(
-                            OneWordShift,
-                            add(returndatasize(), ThirtyOneBytes)
-                        )
+                        let returnDataWords := shr(OneWordShift, add(returndatasize(), ThirtyOneBytes))
 
                         // Note: use transferDataSize in place of msize() to
                         // work around a Yul warning that prevents accessing
@@ -840,25 +658,17 @@ contract TokenTransferrer is TokenTransferrerErrors {
 
                         // Then, compute cost of new memory allocation.
                         if gt(returnDataWords, msizeWords) {
-                            cost := add(
-                                cost,
+                            cost :=
                                 add(
-                                    mul(
-                                        sub(returnDataWords, msizeWords),
-                                        CostPerWord
-                                    ),
-                                    shr(
-                                        MemoryExpansionCoefficientShift,
-                                        sub(
-                                            mul(
-                                                returnDataWords,
-                                                returnDataWords
-                                            ),
-                                            mul(msizeWords, msizeWords)
+                                    cost,
+                                    add(
+                                        mul(sub(returnDataWords, msizeWords), CostPerWord),
+                                        shr(
+                                            MemoryExpansionCoefficientShift,
+                                            sub(mul(returnDataWords, returnDataWords), mul(msizeWords, msizeWords))
                                         )
                                     )
                                 )
-                            )
                         }
 
                         // Finally, add a small constant and compare to gas
@@ -874,27 +684,18 @@ contract TokenTransferrer is TokenTransferrerErrors {
                     }
 
                     // Set the error signature.
-                    mstore(
-                        0,
-                        ERC1155BatchTransferGenericFailure_error_signature
-                    )
+                    mstore(0, ERC1155BatchTransferGenericFailure_error_signature)
 
                     // Write the token.
                     mstore(ERC1155BatchTransferGenericFailure_token_ptr, token)
 
                     // Increase the offset to ids by 32.
-                    mstore(
-                        BatchTransfer1155Params_ids_head_ptr,
-                        ERC1155BatchTransferGenericFailure_ids_offset
-                    )
+                    mstore(BatchTransfer1155Params_ids_head_ptr, ERC1155BatchTransferGenericFailure_ids_offset)
 
                     // Increase the offset to amounts by 32.
                     mstore(
                         BatchTransfer1155Params_amounts_head_ptr,
-                        add(
-                            OneWord,
-                            mload(BatchTransfer1155Params_amounts_head_ptr)
-                        )
+                        add(OneWord, mload(BatchTransfer1155Params_amounts_head_ptr))
                     )
 
                     // Return modified region. The total size stays the same as

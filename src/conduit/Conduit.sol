@@ -1,16 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
-import { ConduitInterface } from "../interfaces/ConduitInterface.sol";
+import {ConduitInterface} from "seaport-types/src/interfaces/ConduitInterface.sol";
 
-import { ConduitItemType } from "./lib/ConduitEnums.sol";
+import {ConduitItemType} from "seaport-types/src/conduit/lib/ConduitEnums.sol";
 
-import { TokenTransferrer } from "../lib/TokenTransferrer.sol";
+import {TokenTransferrer} from "../lib/TokenTransferrer.sol";
 
-import {
-    ConduitBatch1155Transfer,
-    ConduitTransfer
-} from "./lib/ConduitStructs.sol";
+import {ConduitBatch1155Transfer, ConduitTransfer} from "seaport-types/src/conduit/lib/ConduitStructs.sol";
 
 import {
     ChannelClosed_channel_ptr,
@@ -20,7 +17,7 @@ import {
     ChannelKey_channel_ptr,
     ChannelKey_length,
     ChannelKey_slot_ptr
-} from "./lib/ConduitConstants.sol";
+} from "seaport-types/src/conduit/lib/ConduitConstants.sol";
 
 /**
  * @title Conduit
@@ -56,9 +53,7 @@ contract Conduit is ConduitInterface, TokenTransferrer {
 
             // Derive the position in storage of _channels[msg.sender]
             // and check if the stored value is zero.
-            if iszero(
-                sload(keccak256(ChannelKey_channel_ptr, ChannelKey_length))
-            ) {
+            if iszero(sload(keccak256(ChannelKey_channel_ptr, ChannelKey_length))) {
                 // The caller is not an open channel; revert with
                 // ChannelClosed(caller). First, set error signature in memory.
                 mstore(ChannelClosed_error_ptr, ChannelClosed_error_signature)
@@ -101,14 +96,17 @@ contract Conduit is ConduitInterface, TokenTransferrer {
      * @return magicValue A magic value indicating that the transfers were
      *                    performed successfully.
      */
-    function execute(
-        ConduitTransfer[] calldata transfers
-    ) external override onlyOpenChannel returns (bytes4 magicValue) {
+    function execute(ConduitTransfer[] calldata transfers)
+        external
+        override
+        onlyOpenChannel
+        returns (bytes4 magicValue)
+    {
         // Retrieve the total number of transfers and place on the stack.
         uint256 totalStandardTransfers = transfers.length;
 
         // Iterate over each transfer.
-        for (uint256 i = 0; i < totalStandardTransfers; ) {
+        for (uint256 i = 0; i < totalStandardTransfers;) {
             // Retrieve the transfer in question and perform the transfer.
             _transfer(transfers[i]);
 
@@ -136,9 +134,12 @@ contract Conduit is ConduitInterface, TokenTransferrer {
      * @return magicValue A magic value indicating that the item transfers were
      *                    performed successfully.
      */
-    function executeBatch1155(
-        ConduitBatch1155Transfer[] calldata batchTransfers
-    ) external override onlyOpenChannel returns (bytes4 magicValue) {
+    function executeBatch1155(ConduitBatch1155Transfer[] calldata batchTransfers)
+        external
+        override
+        onlyOpenChannel
+        returns (bytes4 magicValue)
+    {
         // Perform 1155 batch transfers. Note that memory should be considered
         // entirely corrupted from this point forward.
         _performERC1155BatchTransfers(batchTransfers);
@@ -171,7 +172,7 @@ contract Conduit is ConduitInterface, TokenTransferrer {
         uint256 totalStandardTransfers = standardTransfers.length;
 
         // Iterate over each standard transfer.
-        for (uint256 i = 0; i < totalStandardTransfers; ) {
+        for (uint256 i = 0; i < totalStandardTransfers;) {
             // Retrieve the transfer in question and perform the transfer.
             _transfer(standardTransfers[i]);
 
@@ -236,21 +237,10 @@ contract Conduit is ConduitInterface, TokenTransferrer {
             }
 
             // Transfer ERC721 token.
-            _performERC721Transfer(
-                item.token,
-                item.from,
-                item.to,
-                item.identifier
-            );
+            _performERC721Transfer(item.token, item.from, item.to, item.identifier);
         } else if (item.itemType == ConduitItemType.ERC1155) {
             // Transfer ERC1155 token.
-            _performERC1155Transfer(
-                item.token,
-                item.from,
-                item.to,
-                item.identifier,
-                item.amount
-            );
+            _performERC1155Transfer(item.token, item.from, item.to, item.identifier, item.amount);
         } else {
             // Throw with an error.
             revert InvalidItemType();

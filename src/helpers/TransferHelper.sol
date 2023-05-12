@@ -1,28 +1,21 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
-import { IERC721Receiver } from "../interfaces/IERC721Receiver.sol";
+import {IERC721Receiver} from "seaport-types/src/interfaces/IERC721Receiver.sol";
 
-import {
-    TransferHelperItem,
-    TransferHelperItemsWithRecipient
-} from "./TransferHelperStructs.sol";
+import {TransferHelperItem, TransferHelperItemsWithRecipient} from "seaport-types/src/helpers/TransferHelperStructs.sol";
 
-import { ConduitItemType } from "../conduit/lib/ConduitEnums.sol";
+import {ConduitItemType} from "seaport-types/src/conduit/lib/ConduitEnums.sol";
 
-import { ConduitInterface } from "../interfaces/ConduitInterface.sol";
+import {ConduitInterface} from "seaport-types/src/interfaces/ConduitInterface.sol";
 
-import {
-    ConduitControllerInterface
-} from "../interfaces/ConduitControllerInterface.sol";
+import {ConduitControllerInterface} from "seaport-types/src/interfaces/ConduitControllerInterface.sol";
 
-import { ConduitTransfer } from "../conduit/lib/ConduitStructs.sol";
+import {ConduitTransfer} from "seaport-types/src/conduit/lib/ConduitStructs.sol";
 
-import {
-    TransferHelperInterface
-} from "../interfaces/TransferHelperInterface.sol";
+import {TransferHelperInterface} from "seaport-types/src/interfaces/TransferHelperInterface.sol";
 
-import { TransferHelperErrors } from "../interfaces/TransferHelperErrors.sol";
+import {TransferHelperErrors} from "seaport-types/src/interfaces/TransferHelperErrors.sol";
 
 /**
  * @title TransferHelper
@@ -50,11 +43,8 @@ contract TransferHelper is TransferHelperInterface, TransferHelperErrors {
     constructor(address conduitController) {
         // Get the conduit creation code and runtime code hashes from the
         // supplied conduit controller and set them as an immutable.
-        ConduitControllerInterface controller = ConduitControllerInterface(
-            conduitController
-        );
-        (_CONDUIT_CREATION_CODE_HASH, _CONDUIT_RUNTIME_CODE_HASH) = controller
-            .getConduitCodeHashes();
+        ConduitControllerInterface controller = ConduitControllerInterface(conduitController);
+        (_CONDUIT_CREATION_CODE_HASH, _CONDUIT_RUNTIME_CODE_HASH) = controller.getConduitCodeHashes();
 
         // Set the supplied conduit controller as an immutable.
         _CONDUIT_CONTROLLER = controller;
@@ -70,10 +60,11 @@ contract TransferHelper is TransferHelperInterface, TransferHelperErrors {
      *
      * @return magicValue A value indicating that the transfers were successful.
      */
-    function bulkTransfer(
-        TransferHelperItemsWithRecipient[] calldata items,
-        bytes32 conduitKey
-    ) external override returns (bytes4 magicValue) {
+    function bulkTransfer(TransferHelperItemsWithRecipient[] calldata items, bytes32 conduitKey)
+        external
+        override
+        returns (bytes4 magicValue)
+    {
         // Ensure that a conduit key has been supplied.
         if (conduitKey == bytes32(0)) {
             revert InvalidConduit(conduitKey, address(0));
@@ -94,10 +85,9 @@ contract TransferHelper is TransferHelperInterface, TransferHelperErrors {
      * @param conduitKey The conduit key referring to the conduit through
      *                   which the bulk transfer should occur.
      */
-    function _performTransfersWithConduit(
-        TransferHelperItemsWithRecipient[] calldata transfers,
-        bytes32 conduitKey
-    ) internal {
+    function _performTransfersWithConduit(TransferHelperItemsWithRecipient[] calldata transfers, bytes32 conduitKey)
+        internal
+    {
         // Retrieve total number of transfers and place on stack.
         uint256 numTransfers = transfers.length;
 
@@ -108,10 +98,7 @@ contract TransferHelper is TransferHelperInterface, TransferHelperErrors {
                 uint256(
                     keccak256(
                         abi.encodePacked(
-                            bytes1(0xff),
-                            address(_CONDUIT_CONTROLLER),
-                            conduitKey,
-                            _CONDUIT_CREATION_CODE_HASH
+                            bytes1(0xff), address(_CONDUIT_CONTROLLER), conduitKey, _CONDUIT_CREATION_CODE_HASH
                         )
                     )
                 )
@@ -126,9 +113,7 @@ contract TransferHelper is TransferHelperInterface, TransferHelperErrors {
             // Iterate over each transfer.
             for (uint256 i = 0; i < numTransfers; ++i) {
                 // Retrieve the transfer in question.
-                TransferHelperItemsWithRecipient calldata transfer = transfers[
-                    i
-                ];
+                TransferHelperItemsWithRecipient calldata transfer = transfers[i];
 
                 // Increment totalItems by the number of items in the transfer.
                 sumOfItemsAcrossAllTransfers += transfer.items.length;
@@ -149,9 +134,7 @@ contract TransferHelper is TransferHelperInterface, TransferHelperErrors {
             // Iterate over each transfer.
             for (uint256 i = 0; i < numTransfers; ++i) {
                 // Retrieve the transfer in question.
-                TransferHelperItemsWithRecipient calldata transfer = transfers[
-                    i
-                ];
+                TransferHelperItemsWithRecipient calldata transfer = transfers[i];
 
                 // Retrieve the items of the transfer in question.
                 TransferHelperItem[] calldata transferItems = transfer.items;
@@ -161,8 +144,7 @@ contract TransferHelper is TransferHelperInterface, TransferHelperErrors {
 
                 // Create a boolean indicating whether validateERC721Receiver
                 // is true and recipient is a contract.
-                bool callERC721Receiver = transfer.validateERC721Receiver &&
-                    transfer.recipient.code.length != 0;
+                bool callERC721Receiver = transfer.validateERC721Receiver && transfer.recipient.code.length != 0;
 
                 // Retrieve the total number of items in the transfer and
                 // place on stack.
@@ -187,23 +169,14 @@ contract TransferHelper is TransferHelperInterface, TransferHelperErrors {
                         if (callERC721Receiver) {
                             // Check if the recipient implements
                             // onERC721Received for the given tokenId.
-                            _checkERC721Receiver(
-                                conduit,
-                                transfer.recipient,
-                                item.identifier
-                            );
+                            _checkERC721Receiver(conduit, transfer.recipient, item.identifier);
                         }
                     }
 
                     // Create a ConduitTransfer corresponding to each
                     // TransferHelperItem.
                     conduitTransfers[itemIndex] = ConduitTransfer(
-                        item.itemType,
-                        item.token,
-                        msg.sender,
-                        transfer.recipient,
-                        item.identifier,
-                        item.amount
+                        item.itemType, item.token, msg.sender, transfer.recipient, item.identifier, item.amount
                     );
 
                     // Increment the index for storing ConduitTransfers.
@@ -213,9 +186,7 @@ contract TransferHelper is TransferHelperInterface, TransferHelperErrors {
         }
 
         // Attempt the external call to transfer tokens via the derived conduit.
-        try ConduitInterface(conduit).execute(conduitTransfers) returns (
-            bytes4 conduitMagicValue
-        ) {
+        try ConduitInterface(conduit).execute(conduitTransfers) returns (bytes4 conduitMagicValue) {
             // Check if the value returned from the external call matches
             // the conduit `execute` selector.
             if (conduitMagicValue != ConduitInterface.execute.selector) {
@@ -242,26 +213,21 @@ contract TransferHelper is TransferHelperInterface, TransferHelperErrors {
             // Utilize assembly to read first four bytes (if present) directly.
             assembly {
                 // Combine original mask with first four bytes of revert data.
-                customErrorSelector := and(
-                    mload(add(data, 0x20)), // Data begins after length offset.
-                    customErrorSelector
-                )
+                customErrorSelector :=
+                    and(
+                        mload(add(data, 0x20)), // Data begins after length offset.
+                        customErrorSelector
+                    )
             }
 
             // Pass through the custom error in question if the revert data is
             // the correct length and matches an expected custom error selector.
-            if (
-                data.length == 4 &&
-                customErrorSelector == InvalidItemType.selector
-            ) {
+            if (data.length == 4 && customErrorSelector == InvalidItemType.selector) {
                 // "Bubble up" the revert reason.
                 assembly {
                     revert(add(data, 0x20), 0x04)
                 }
-            } else if (
-                data.length == 36 &&
-                customErrorSelector == InvalidERC721TransferAmount.selector
-            ) {
+            } else if (data.length == 36 && customErrorSelector == InvalidERC721TransferAmount.selector) {
                 // "Bubble up" the revert reason.
                 assembly {
                     revert(add(data, 0x20), 0x24)
@@ -290,20 +256,9 @@ contract TransferHelper is TransferHelperInterface, TransferHelperErrors {
      * @param recipient The ERC721 recipient on which to call onERC721Received.
      * @param tokenId   The ERC721 tokenId of the token being transferred.
      */
-    function _checkERC721Receiver(
-        address conduit,
-        address recipient,
-        uint256 tokenId
-    ) internal {
+    function _checkERC721Receiver(address conduit, address recipient, uint256 tokenId) internal {
         // Check if recipient can receive ERC721 tokens.
-        try
-            IERC721Receiver(recipient).onERC721Received(
-                conduit,
-                msg.sender,
-                tokenId,
-                ""
-            )
-        returns (bytes4 selector) {
+        try IERC721Receiver(recipient).onERC721Received(conduit, msg.sender, tokenId, "") returns (bytes4 selector) {
             // Check if onERC721Received selector is valid.
             if (selector != IERC721Receiver.onERC721Received.selector) {
                 // Revert if recipient cannot accept
@@ -312,20 +267,10 @@ contract TransferHelper is TransferHelperInterface, TransferHelperErrors {
             }
         } catch (bytes memory data) {
             // "Bubble up" recipient's revert reason.
-            revert ERC721ReceiverErrorRevertBytes(
-                data,
-                recipient,
-                msg.sender,
-                tokenId
-            );
+            revert ERC721ReceiverErrorRevertBytes(data, recipient, msg.sender, tokenId);
         } catch Error(string memory reason) {
             // "Bubble up" recipient's revert reason.
-            revert ERC721ReceiverErrorRevertString(
-                reason,
-                recipient,
-                msg.sender,
-                tokenId
-            );
+            revert ERC721ReceiverErrorRevertString(reason, recipient, msg.sender, tokenId);
         }
     }
 
