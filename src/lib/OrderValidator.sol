@@ -198,7 +198,7 @@ contract OrderValidator is Executor, ZoneInteraction {
         orderHash = _assertConsiderationLengthAndGetOrderHash(orderParameters);
 
         // Retrieve the order status using the derived order hash.
-        OrderStatus storage orderStatus = _orderStatus[orderHash];
+        OrderStatus memory orderStatus = _orderStatus[orderHash];
 
         // Ensure order is fillable and is not cancelled.
         if (
