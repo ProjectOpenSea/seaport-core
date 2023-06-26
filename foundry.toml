@@ -7,21 +7,13 @@ via_ir = true
 src = "src"
 out = "out"
 libs = ["lib"]
-remappings = ['seaport-types/=node_modules/seaport-types/','create2-helpers/=lib/create2-helpers/','forge-std/=lib/forge-std/src/']
-fs_permissions = [{access = 'read', path = './out_deploy/'}, {access='read', path='./out/'}]
+remappings = ['seaport-types/=lib/seaport-types/','create2-helpers/=lib/create2-helpers/','forge-std/=lib/forge-std/src/']
+fs_permissions = [{access = 'read', path = 'out_deploy'}]
 
-[profile.precompile-conduit]
-solc = '0.8.14'
-src = 'src/conduit/'
-out = 'out_deploy'
-test = 'src/conduit/'
-optimizer_runs = 1000000
-
-[profile.precompile-seaport]
-out = 'out_deploy'
 
 [profile.deploy]
 via_ir = false
+src='script'
 
 [fmt]
 line_length = 80
