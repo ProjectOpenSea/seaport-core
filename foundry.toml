@@ -1,7 +1,15 @@
 [profile.default]
+solc = '0.8.17'
+optimizer = true
+optimizer_runs = 4_294_967_295
+bytecode_hash = 'none'
+via_ir = true
 src = "src"
 out = "out"
 libs = ["lib"]
 remappings = ['seaport-types/=lib/seaport-types/']
 
-# See more config options https://github.com/foundry-rs/foundry/tree/master/config
+[profile.conduit]
+solc = '0.8.14'
+src = 'src/conduit'
+optimizer_runs = 1000000
