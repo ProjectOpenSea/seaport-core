@@ -14,6 +14,7 @@
     "README.md"
   ],
   "dependencies": {
+    "@emo-eth/create2-helpers": "^0.1.4",
     "seaport-types": "^0.0.1"
   }
 }

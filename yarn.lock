@@ -2,6 +2,18 @@
 # yarn lockfile v1
 
 
+"@emo-eth/create2-helpers@^0.1.4":
+  version "0.1.4"
+  resolved "https://registry.yarnpkg.com/@emo-eth/create2-helpers/-/create2-helpers-0.1.4.tgz#fb8ca2380572120664d11cfbdbfe527e23ff847f"
+  integrity sha512-26uMQXrtXGr5CUFyA3VMAY6LtSdB4uIgjQ3irjDAunjEdlA/l1edILQQIkiM8hvflT8edJElIkycwmTGVU2YAw==
+  dependencies:
+    "@openzeppelin/contracts" "^4.8.0"
+
+"@openzeppelin/contracts@^4.8.0":
+  version "4.9.2"
+  resolved "https://registry.yarnpkg.com/@openzeppelin/contracts/-/contracts-4.9.2.tgz#1cb2d5e4d3360141a17dbc45094a8cad6aac16c1"
+  integrity sha512-mO+y6JaqXjWeMh9glYVzVu8HYPGknAAnWyxTRhGeckOruyXQMNnlcW6w/Dx9ftLeIQk6N+ZJFuVmTwF7lEIFrg==
+
 seaport-types@^0.0.1:
   version "0.0.1"
   resolved "https://registry.yarnpkg.com/seaport-types/-/seaport-types-0.0.1.tgz#e2a32fe8641853d7dadb1b0232d911d88ccc3f1a"
