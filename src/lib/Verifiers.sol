@@ -227,7 +227,7 @@ contract Verifiers is Assertions, SignatureVerification {
      */
     function _verifyOrderStatus(
         bytes32 orderHash,
-        OrderStatus storage orderStatus,
+        OrderStatus memory orderStatus,
         bool onlyAllowUnused,
         bool revertOnInvalid
     ) internal view returns (bool valid) {
