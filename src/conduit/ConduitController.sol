@@ -228,9 +228,10 @@ contract ConduitController is ConduitControllerInterface {
     function acceptOwnership(address conduit) external override {
         // Ensure that the conduit in question exists.
         _assertConduitExists(conduit);
+        ConduitProperties storage conduitProperties = _conduits[conduit];
 
         // If caller does not match current potential owner of the conduit...
-        if (msg.sender != _conduits[conduit].potentialOwner) {
+        if (msg.sender != conduitProperties.potentialOwner) {
             // Revert, indicating that caller is not current potential owner.
             revert CallerIsNotNewPotentialOwner(conduit);
         }
@@ -239,13 +240,13 @@ contract ConduitController is ConduitControllerInterface {
         emit PotentialOwnerUpdated(address(0));
 
         // Clear the current new potential owner from the conduit.
-        _conduits[conduit].potentialOwner = address(0);
+        conduitProperties.potentialOwner = address(0);
 
         // Emit an event indicating conduit ownership has been transferred.
-        emit OwnershipTransferred(conduit, _conduits[conduit].owner, msg.sender);
+        emit OwnershipTransferred(conduit, conduitProperties.owner, msg.sender);
 
         // Set the caller as the owner of the conduit.
-        _conduits[conduit].owner = msg.sender;
+        conduitProperties.owner = msg.sender;
     }
 
     /**
