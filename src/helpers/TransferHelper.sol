@@ -222,15 +222,19 @@ contract TransferHelper is TransferHelperInterface, TransferHelperErrors {
 
             // Pass through the custom error in question if the revert data is
             // the correct length and matches an expected custom error selector.
-            if (data.length == 4 && customErrorSelector == InvalidItemType.selector) {
-                // "Bubble up" the revert reason.
-                assembly {
-                    revert(add(data, 0x20), 0x04)
+            if (data.length == 4) {
+                if (customErrorSelector == InvalidItemType.selector) {
+                    // "Bubble up" the revert reason.
+                    assembly {
+                        revert(add(data, 0x20), 0x04)
+                    }
                 }
-            } else if (data.length == 36 && customErrorSelector == InvalidERC721TransferAmount.selector) {
-                // "Bubble up" the revert reason.
-                assembly {
-                    revert(add(data, 0x20), 0x24)
+            } else if (data.length == 36) {
+                if (customErrorSelector == InvalidERC721TransferAmount.selector) {
+                    // "Bubble up" the revert reason.
+                    assembly {
+                        revert(add(data, 0x20), 0x24)
+                    }
                 }
             }
 
