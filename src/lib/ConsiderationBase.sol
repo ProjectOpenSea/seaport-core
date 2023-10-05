@@ -224,13 +224,6 @@ contract ConsiderationBase is ConsiderationDecoder, ConsiderationEncoder, Consid
             "uint256 startAmount," "uint256 endAmount," "address recipient" ")"
         );
 
-        // Construct the OrderComponents type string, not including the above.
-        bytes memory orderComponentsPartialTypeString = bytes(
-            "OrderComponents(" "address offerer," "address zone," "OfferItem[] offer,"
-            "ConsiderationItem[] consideration," "uint8 orderType," "uint256 startTime," "uint256 endTime,"
-            "bytes32 zoneHash," "uint256 salt," "bytes32 conduitKey," "uint256 counter" ")"
-        );
-
         // Construct the primary EIP-712 domain type string.
         eip712DomainTypehash = keccak256(
             bytes("EIP712Domain(" "string name," "string version," "uint256 chainId," "address verifyingContract" ")")
@@ -242,11 +235,12 @@ contract ConsiderationBase is ConsiderationDecoder, ConsiderationEncoder, Consid
         // Derive ConsiderationItem type hash using corresponding type string.
         considerationItemTypehash = keccak256(considerationItemTypeString);
 
-        bytes memory orderTypeString =
-            bytes.concat(orderComponentsPartialTypeString, considerationItemTypeString, offerItemTypeString);
-
         // Derive OrderItem type hash via combination of relevant type strings.
-        orderTypehash = keccak256(orderTypeString);
+        orderTypehash = keccak256(bytes.concat(bytes(
+            "OrderComponents(" "address offerer," "address zone," "OfferItem[] offer,"
+            "ConsiderationItem[] consideration," "uint8 orderType," "uint256 startTime," "uint256 endTime,"
+            "bytes32 zoneHash," "uint256 salt," "bytes32 conduitKey," "uint256 counter" ")"
+        ), considerationItemTypeString, offerItemTypeString));
     }
 
     /**

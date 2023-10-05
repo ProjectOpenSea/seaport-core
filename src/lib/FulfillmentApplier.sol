@@ -216,10 +216,15 @@ contract FulfillmentApplier is FulfillmentApplicationErrors {
             // Set the offerer and recipient to null address and the item type
             // to a non-native item type if the execution amount is zero. This
             // will cause the execution item to be skipped.
-            if (item.amount == 0) {
-                execution.offerer = address(0);
-                item.recipient = payable(0);
-                item.itemType = ItemType.ERC20;
+            assembly {
+                if iszero(mload(add(item, Common_amount_offset))) {
+                    // execution.offerer = address(0);
+                    mstore(add(execution, Execution_offerer_offset), 0)
+                    // item.recipient = payable(0);
+                    mstore(add(item, ReceivedItem_recipient_offset), 0)
+                    // item.itemType = ItemType.ERC20;
+                    mstore(item, 2)
+                }
             }
         }
     }

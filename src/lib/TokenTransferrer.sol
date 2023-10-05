@@ -113,7 +113,7 @@ contract TokenTransferrer is TokenTransferrerErrors {
             // call data for the transfer; read the value and restore it later.
             let memPointer := mload(FreeMemoryPointerSlot)
 
-            // Write call data into memory, starting with function selector.
+            // Write calldata into memory, starting with function selector.
             mstore(ERC20_transferFrom_sig_ptr, ERC20_transferFrom_signature)
             mstore(ERC20_transferFrom_from_ptr, from)
             mstore(ERC20_transferFrom_to_ptr, to)

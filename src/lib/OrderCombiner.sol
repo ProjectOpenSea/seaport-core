@@ -265,15 +265,15 @@ contract OrderCombiner is OrderFulfiller, FulfillmentApplier {
                     continue;
                 }
 
-                // Otherwise, track the order hash in question.
                 assembly {
+                    // Otherwise, track the order hash in question.
                     mstore(add(orderHashes, i), orderHash)
-                }
 
-                // Decrement the number of fulfilled orders.
-                // Skip underflow check as the condition before
-                // implies that maximumFulfilled > 0.
-                --maximumFulfilled;
+                    // Decrement the number of fulfilled orders.
+                    // Skip underflow check as the condition before
+                    // implies that maximumFulfilled > 0.
+                    maximumFulfilled := sub(maximumFulfilled, 1)
+                }
 
                 // Place the start time for the order on the stack.
                 uint256 startTime = advancedOrder.parameters.startTime;
@@ -834,13 +834,6 @@ contract OrderCombiner is OrderFulfiller, FulfillmentApplier {
      */
     function _emitOrdersMatched(bytes32[] memory orderHashes) internal {
         assembly {
-            // Load the array length from memory.
-            let length := mload(orderHashes)
-
-            // Get the full size of the event data - one word for the offset,
-            // one for the array length and one per hash.
-            let dataSize := add(TwoWords, shl(OneWordShift, length))
-
             // Get pointer to start of data, reusing word before array length
             // for the offset.
             let dataPointer := sub(orderHashes, OneWord)
@@ -852,7 +845,7 @@ contract OrderCombiner is OrderFulfiller, FulfillmentApplier {
             mstore(dataPointer, OneWord)
 
             // Emit the OrdersMatched event.
-            log1(dataPointer, dataSize, OrdersMatchedTopic0)
+            log1(dataPointer, add(TwoWords, shl(OneWordShift, mload(orderHashes))), OrdersMatchedTopic0)
 
             // Restore the cached word.
             mstore(dataPointer, cache)
@@ -980,10 +973,11 @@ contract OrderCombiner is OrderFulfiller, FulfillmentApplier {
                 }
             }
 
-            // If some number of executions have been filtered...
-            if (totalFilteredExecutions != 0) {
-                // reduce the total length of the executions array.
-                assembly {
+
+            // If some number of executions have been filtered, reduce the total
+            // length of the executions array.
+            assembly {
+                if iszero(iszero(eq(totalFilteredExecutions, 0))) {
                     mstore(executions, sub(mload(executions), totalFilteredExecutions))
                 }
             }

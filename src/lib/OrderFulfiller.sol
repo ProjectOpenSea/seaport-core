@@ -201,9 +201,8 @@ contract OrderFulfiller is BasicOrderFulfiller, CriteriaResolution, AmountDerive
                 // Offer items for the native token can not be received outside
                 // of a match order function except as part of a contract order.
                 {
-                    ItemType itemType = offerItem.itemType;
                     assembly {
-                        anyNativeItems := or(anyNativeItems, iszero(itemType))
+                        anyNativeItems := or(anyNativeItems, iszero(mload(offerItem)))
                     }
                 }
 

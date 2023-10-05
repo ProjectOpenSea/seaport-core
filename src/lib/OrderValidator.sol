@@ -216,9 +216,8 @@ contract OrderValidator is Executor, ZoneInteraction {
 
         // Utilize assembly to determine the fraction to fill and update status.
         assembly {
-            let orderStatusSlot := orderStatus.slot
             // Read filled amount as numerator and denominator and put on stack.
-            let filledNumerator := sload(orderStatusSlot)
+            let filledNumerator := sload(orderStatus.slot)
             let filledDenominator := shr(OrderStatus_filledDenominator_offset, filledNumerator)
 
             // "Loop" until the appropriate fill fraction has been determined.
@@ -343,7 +342,7 @@ contract OrderValidator is Executor, ZoneInteraction {
             // [denominator: 15 bytes] [numerator: 15 bytes]
             // [isCancelled: 1 byte] [isValidated: 1 byte]
             sstore(
-                orderStatusSlot,
+                orderStatus.slot,
                 or(
                     OrderStatus_ValidatedAndNotCancelled,
                     or(
@@ -385,9 +384,6 @@ contract OrderValidator is Executor, ZoneInteraction {
                 identifier := mload(add(newItem, Common_identifier_offset))
             }
 
-            let originalAmount := mload(add(originalItem, Common_amount_offset))
-            let newAmount := mload(add(newItem, Common_amount_offset))
-
             isInvalid :=
                 iszero(
                     and(
@@ -401,7 +397,7 @@ contract OrderValidator is Executor, ZoneInteraction {
                         // originalItem.startAmount == originalItem.endAmount
                         and(
                             eq(identifier, mload(add(newItem, Common_identifier_offset))),
-                            eq(originalAmount, mload(add(originalItem, Common_endAmount_offset)))
+                            eq(mload(add(originalItem, Common_amount_offset)), mload(add(originalItem, Common_endAmount_offset)))
                         )
                     )
                 )
