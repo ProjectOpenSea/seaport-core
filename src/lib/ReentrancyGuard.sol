@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.17;
+pragma solidity ^0.8.21;
 
 import {ReentrancyErrors} from "seaport-types/src/interfaces/ReentrancyErrors.sol";
 
@@ -47,7 +47,16 @@ contract ReentrancyGuard is ReentrancyErrors, LowLevelHelpers {
         // that they will be accepted (with any remaining native tokens returned
         // to the caller).
         unchecked {
-            _reentrancyGuard = _ENTERED + _cast(acceptNativeTokens);
+            assembly {
+                let reentrancyGuardSlot := _reentrancyGuard.slot
+                tstore(
+                    reentrancyGuardSlot,
+                    add(
+                        _ENTERED,
+                        acceptNativeTokens
+                    )
+                )
+            }
         }
     }
 
@@ -56,7 +65,12 @@ contract ReentrancyGuard is ReentrancyErrors, LowLevelHelpers {
      */
     function _clearReentrancyGuard() internal {
         // Clear the reentrancy guard.
-        _reentrancyGuard = _NOT_ENTERED;
+       assembly {
+            tstore(
+                _reentrancyGuard.slot,
+                _NOT_ENTERED
+            )
+       }
     }
 
     /**
