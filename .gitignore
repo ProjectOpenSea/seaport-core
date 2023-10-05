@@ -1,0 +1,16 @@
+.env
+
+#foundry test compilation files
+cache
+out
+
+#foundry script run output files
+broadcast/
+
+.DS_Store
+
+# VScode
+.vscode
+__pycache__
+
+Seaport.yul
