@@ -4,4 +4,8 @@ out = "out"
 libs = ["lib"]
 remappings = ['seaport-types/=lib/seaport-types/']
 
+[profile.tstore]
+cancun = true
+solc = "./bin/solc"
+
 # See more config options https://github.com/foundry-rs/foundry/tree/master/config
