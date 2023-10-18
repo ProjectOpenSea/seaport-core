@@ -22,14 +22,6 @@ contract ReentrancyGuard is ReentrancyErrors, LowLevelHelpers {
     uint256 private _reentrancyGuard;
 
     /**
-     * @dev Initialize the reentrancy guard during deployment.
-     */
-    constructor() {
-        // Initialize the reentrancy guard in a cleared state.
-        _reentrancyGuard = _NOT_ENTERED;
-    }
-
-    /**
      * @dev Internal function to ensure that a sentinel value for the reentrancy
      *      guard is not currently set and, if not, to set a sentinel value for
      *      the reentrancy guard based on whether or not native tokens may be
@@ -46,18 +38,15 @@ contract ReentrancyGuard is ReentrancyErrors, LowLevelHelpers {
         // may not be accepted during execution, whereas a value of 3 indicates
         // that they will be accepted (with any remaining native tokens returned
         // to the caller).
-        unchecked {
             assembly {
-                let reentrancyGuardSlot := _reentrancyGuard.slot
                 tstore(
-                    reentrancyGuardSlot,
+                    _reentrancyGuard.slot,
                     add(
                         _ENTERED,
                         acceptNativeTokens
                     )
                 )
             }
-        }
     }
 
     /**
@@ -79,7 +68,7 @@ contract ReentrancyGuard is ReentrancyErrors, LowLevelHelpers {
      */
     function _assertNonReentrant() internal view {
         // Ensure that the reentrancy guard is not currently set.
-        if (_reentrancyGuard != _NOT_ENTERED) {
+        if (_tloadReentrancyGuard() != _NOT_ENTERED) {
             _revertNoReentrantCalls();
         }
     }
@@ -90,8 +79,15 @@ contract ReentrancyGuard is ReentrancyErrors, LowLevelHelpers {
      */
     function _assertAcceptingNativeTokens() internal view {
         // Ensure that the reentrancy guard is not currently set.
-        if (_reentrancyGuard != _ENTERED_AND_ACCEPTING_NATIVE_TOKENS) {
+        if (_tloadReentrancyGuard() != _ENTERED_AND_ACCEPTING_NATIVE_TOKENS) {
             _revertInvalidMsgValue(msg.value);
+        }
+    }
+
+    function _tloadReentrancyGuard() internal view returns (uint256 reentrancyGuard) {
+        assembly {
+            let reentrancyGuardSlot := _reentrancyGuard.slot
+            reentrancyGuard := tload(reentrancyGuardSlot)
         }
     }
 }
