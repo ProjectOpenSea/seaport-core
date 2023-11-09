@@ -204,7 +204,7 @@ contract OrderFulfiller is OrderValidator, CriteriaResolution, AmountDeriver {
                 }
 
                 // Apply fill fraction to derive offer item amount to transfer.
-                uint256 amount = _applyFractionHelper(
+                uint256 amount = _applyFractionReference(
                     offerItem.startAmount,
                     offerItem.endAmount,
                     fractionData,
@@ -248,7 +248,7 @@ contract OrderFulfiller is OrderValidator, CriteriaResolution, AmountDeriver {
                 );
 
                 // Apply fraction & derive considerationItem amount to transfer.
-                uint256 amount = _applyFractionHelper(
+                uint256 amount = _applyFractionReference(
                     considerationItem.startAmount,
                     considerationItem.endAmount,
                     fractionData,

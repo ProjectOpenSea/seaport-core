@@ -147,6 +147,47 @@ contract AmountDeriver is AmountDerivationErrors {
      *
      * @param startAmount     The starting amount of the item.
      * @param endAmount       The ending amount of the item.
+     * @param numerator       A value indicating the portion of the order that
+     *                        should be filled.
+     * @param denominator     A value indicating the total size of the order.
+     * @param startTime       The starting time of the order.
+     * @param endTime         The end time of the order.
+     * @param roundUp         A boolean indicating whether the resultant
+     *                        amount should be rounded up or down.
+     *
+     * @return amount The received item to transfer with the final amount.
+     */
+    function _applyFraction(
+        uint256 startAmount,
+        uint256 endAmount,
+        uint256 numerator,
+        uint256 denominator,
+        uint256 startTime,
+        uint256 endTime,
+        bool roundUp
+    ) internal view returns (uint256 amount) {
+        // If start amount equals end amount, apply fraction to end amount.
+        if (startAmount == endAmount) {
+            // Apply fraction to end amount.
+            amount = _getFraction(numerator, denominator, endAmount);
+        } else {
+            // Otherwise, apply fraction to both and interpolated final amount.
+            amount = _locateCurrentAmount(
+                _getFraction(numerator, denominator, startAmount),
+                _getFraction(numerator, denominator, endAmount),
+                startTime,
+                endTime,
+                roundUp
+            );
+        }
+    }
+
+    /**
+     * @dev Internal view function to apply a fraction to a consideration
+     * or offer item.
+     *
+     * @param startAmount     The starting amount of the item.
+     * @param endAmount       The ending amount of the item.
      * @param fractionData    A struct containing the data used to apply a
      *                        fraction to an order.
      * @param roundUp         A boolean indicating whether the resultant
@@ -154,7 +195,7 @@ contract AmountDeriver is AmountDerivationErrors {
      *
      * @return amount The received item to transfer with the final amount.
      */
-    function _applyFractionHelper(
+    function _applyFractionReference(
         uint256 startAmount,
         uint256 endAmount,
         FractionData memory fractionData,
