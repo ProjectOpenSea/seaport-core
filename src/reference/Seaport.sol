@@ -37,7 +37,7 @@ import { OrderToExecute } from "./lib/ReferenceConsiderationStructs.sol";
  *         spent (the "offer") along with an arbitrary number of items that must
  *         be received back by the indicated recipients (the "consideration").
  */
-contract ReferenceConsideration is
+contract Seaport is
     ConsiderationInterface,
     ReferenceOrderCombiner
 {
