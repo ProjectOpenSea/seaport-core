@@ -3,6 +3,8 @@ pragma solidity ^0.8.17;
 
 import {ItemType, OrderType} from "seaport-types/src/lib/ConsiderationEnums.sol";
 
+import {AccumulatorStruct, FractionData, OrderToExecute} from "../reference/ConsiderationStructs.sol";
+
 import {
     AdvancedOrder,
     ConsiderationItem,
@@ -81,12 +83,6 @@ contract OrderFulfiller is BasicOrderFulfiller, CriteriaResolution, AmountDerive
         bytes32 fulfillerConduitKey,
         address recipient
     ) internal returns (bool) {
-        // Ensure this function cannot be triggered during a reentrant call.
-        _setReentrancyGuard(
-            // Native tokens accepted during execution for contract order types.
-            advancedOrder.parameters.orderType == OrderType.CONTRACT
-        );
-
         // Validate order, update status, and determine fraction to fill.
         (bytes32 orderHash, uint256 fillNumerator, uint256 fillDenominator) =
             _validateOrderAndUpdateStatus(advancedOrder, true);
@@ -104,14 +100,29 @@ contract OrderFulfiller is BasicOrderFulfiller, CriteriaResolution, AmountDerive
         OrderParameters memory orderParameters = advancedOrders[0].parameters;
 
         // Perform each item transfer with the appropriate fractional amount.
-        _applyFractionsAndTransferEach(orderParameters, fillNumerator, fillDenominator, fulfillerConduitKey, recipient);
+        OrderToExecute memory orderToExecute = _applyFractionsAndTransferEach(
+            orderParameters, 
+            fillNumerator, 
+            fillDenominator, 
+            fulfillerConduitKey, 
+            recipient
+        );
 
         // Declare empty bytes32 array and populate with the order hash.
         bytes32[] memory orderHashes = new bytes32[](1);
         orderHashes[0] = orderHash;
 
         // Ensure restricted orders have a valid submitter or pass a zone check.
-        _assertRestrictedAdvancedOrderValidity(advancedOrders[0], orderHashes, orderHash);
+        _assertRestrictedAdvancedOrderValidity(
+            advancedOrder,
+            orderToExecute,
+            orderHashes,
+            orderHash,
+            orderParameters.zoneHash,
+            orderParameters.orderType,
+            orderParameters.offerer,
+            orderParameters.zone
+        );
 
         // Emit an event signifying that the order has been fulfilled.
         _emitOrderFulfilledEvent(
@@ -122,9 +133,6 @@ contract OrderFulfiller is BasicOrderFulfiller, CriteriaResolution, AmountDerive
             orderParameters.offer,
             orderParameters.consideration
         );
-
-        // Clear the reentrancy guard.
-        _clearReentrancyGuard();
 
         return true;
     }
@@ -141,9 +149,12 @@ contract OrderFulfiller is BasicOrderFulfiller, CriteriaResolution, AmountDerive
      * @param fulfillerConduitKey A bytes32 value indicating what conduit, if
      *                            any, to source the fulfiller's token approvals
      *                            from. The zero hash signifies that no conduit
-     *                            should be used, with direct approvals set on
-     *                            Consideration.
+     *                            should be used (and direct approvals set on
+     *                            Consideration).
      * @param recipient           The intended recipient for all received items.
+     * @return orderToExecute     Returns the order of items that are being
+     *                            transferred. This will be used for the
+     *                            OrderFulfilled Event.
      */
     function _applyFractionsAndTransferEach(
         OrderParameters memory orderParameters,
@@ -151,134 +162,83 @@ contract OrderFulfiller is BasicOrderFulfiller, CriteriaResolution, AmountDerive
         uint256 denominator,
         bytes32 fulfillerConduitKey,
         address recipient
-    ) internal {
-        // Read start time & end time from order parameters and place on stack.
-        uint256 startTime = orderParameters.startTime;
-        uint256 endTime = orderParameters.endTime;
+    ) internal returns (OrderToExecute memory orderToExecute) {
+        // Create the accumulator struct.
+        AccumulatorStruct memory accumulatorStruct;
 
-        // Initialize an accumulator array. From this point forward, no new
-        // memory regions can be safely allocated until the accumulator is no
-        // longer being utilized, as the accumulator operates in an open-ended
-        // fashion from this memory pointer; existing memory may still be
-        // accessed and modified, however.
-        bytes memory accumulator = new bytes(AccumulatorDisarmed);
+        // Get the offerer of the order.
+        address offerer = orderParameters.offerer;
 
-        // As of solidity 0.6.0, inline assembly cannot directly access function
-        // definitions, but can still access locally scoped function variables.
-        // This means that a local variable to reference the internal function
-        // definition (using the same type), along with a local variable with
-        // the desired type, must first be created. Then, the original function
-        // pointer can be recast to the desired type.
+        // Get the conduitKey of the order
+        bytes32 conduitKey = orderParameters.conduitKey;
 
-        /**
-         * Repurpose existing OfferItem memory regions on the offer array for
-         * the order by overriding the _transfer function pointer to accept a
-         * modified OfferItem argument in place of the usual ReceivedItem:
-         *
-         *   ========= OfferItem ==========   ====== ReceivedItem ======
-         *   ItemType itemType; ------------> ItemType itemType;
-         *   address token; ----------------> address token;
-         *   uint256 identifierOrCriteria; -> uint256 identifier;
-         *   uint256 startAmount; ----------> uint256 amount;
-         *   uint256 endAmount; ------------> address recipient;
-         */
+        // Create the array to store the spent items for event.
+        orderToExecute.spentItems = new SpentItem[](
+            orderParameters.offer.length
+        );
 
         // Declare a nested scope to minimize stack depth.
-        unchecked {
-            // Read offer array length from memory and place on stack.
-            uint256 totalOfferItems = orderParameters.offer.length;
-
-            // Create a variable to indicate whether the order has any
-            // native offer items
-            uint256 anyNativeItems;
-
+        {
             // Iterate over each offer on the order.
-            // Skip overflow check as for loop is indexed starting at zero.
-            for (uint256 i = 0; i < totalOfferItems; ++i) {
+            for (uint256 i = 0; i < orderParameters.offer.length; ++i) {
                 // Retrieve the offer item.
                 OfferItem memory offerItem = orderParameters.offer[i];
 
                 // Offer items for the native token can not be received outside
                 // of a match order function except as part of a contract order.
-                {
-                    ItemType itemType = offerItem.itemType;
-                    assembly {
-                        anyNativeItems := or(anyNativeItems, iszero(itemType))
-                    }
+                if (
+                    offerItem.itemType == ItemType.NATIVE &&
+                    orderParameters.orderType != OrderType.CONTRACT
+                ) {
+                    revert InvalidNativeOfferItem();
                 }
 
-                // Declare an additional nested scope to minimize stack depth.
-                {
-                    // Apply fill fraction to get offer item amount to transfer.
-                    uint256 amount = _applyFraction(
-                        offerItem.startAmount, offerItem.endAmount, numerator, denominator, startTime, endTime, false
-                    );
+                // Apply fill fraction to derive offer item amount to transfer.
+                uint256 amount = _applyFraction(
+                    offerItem.startAmount,
+                    offerItem.endAmount,
+                    numerator,
+                    denominator,
+                    orderParameters.startTime,
+                    orderParameters.endTime,
+                    false
+                );
 
-                    // Utilize assembly to set overloaded offerItem arguments.
-                    assembly {
-                        // Write new fractional amount to startAmount as amount.
-                        mstore(add(offerItem, ReceivedItem_amount_offset), amount)
+                // Create Received Item from Offer Item for transfer.
+                ReceivedItem memory receivedItem = ReceivedItem(
+                    offerItem.itemType,
+                    offerItem.token,
+                    offerItem.identifierOrCriteria,
+                    amount,
+                    payable(recipient)
+                );
 
-                        // Write recipient to endAmount.
-                        mstore(add(offerItem, ReceivedItem_recipient_offset), recipient)
-                    }
-                }
+                // Create Spent Item for the OrderFulfilled event.
+                orderToExecute.spentItems[i] = SpentItem(
+                    receivedItem.itemType,
+                    receivedItem.token,
+                    receivedItem.identifier,
+                    amount
+                );
 
                 // Transfer the item from the offerer to the recipient.
-                _toOfferItemInput(_transfer)(
-                    offerItem, orderParameters.offerer, orderParameters.conduitKey, accumulator
-                );
-            }
-
-            // If a non-contract order has native offer items, throw with an
-            // `InvalidNativeOfferItem` custom error.
-            {
-                OrderType orderType = orderParameters.orderType;
-                uint256 invalidNativeOfferItem;
-                assembly {
-                    invalidNativeOfferItem :=
-                        and(
-                            // Note that this check requires that there are no order
-                            // types beyond the current set (0-4).  It will need to
-                            // be modified if more order types are added.
-                            lt(orderType, 4),
-                            anyNativeItems
-                        )
-                }
-                if (invalidNativeOfferItem != 0) {
-                    _revertInvalidNativeOfferItem();
-                }
+                _transfer(receivedItem, offerer, conduitKey, accumulatorStruct);
             }
         }
 
-        // Declare a variable for the available native token balance.
-        uint256 nativeTokenBalance;
-
-        /**
-         * Repurpose existing ConsiderationItem memory regions on the
-         * consideration array for the order by overriding the _transfer
-         * function pointer to accept a modified ConsiderationItem argument in
-         * place of the usual ReceivedItem:
-         *
-         *   ====== ConsiderationItem =====   ====== ReceivedItem ======
-         *   ItemType itemType; ------------> ItemType itemType;
-         *   address token; ----------------> address token;
-         *   uint256 identifierOrCriteria;--> uint256 identifier;
-         *   uint256 startAmount; ----------> uint256 amount;
-         *   uint256 endAmount;        /----> address recipient;
-         *   address recipient; ------/
-         */
+        // Create the array to store the received items for event.
+        orderToExecute.receivedItems = new ReceivedItem[](
+            orderParameters.consideration.length
+        );
 
         // Declare a nested scope to minimize stack depth.
-        unchecked {
-            // Read consideration array length from memory and place on stack.
-            uint256 totalConsiderationItems = orderParameters.consideration.length;
-
-            // Iterate over each consideration item on the order.
-            // Skip overflow check as for loop is indexed starting at zero.
-            for (uint256 i = 0; i < totalConsiderationItems; ++i) {
+        {
+            // Iterate over each consideration on the order.
+            for (uint256 i = 0; i < orderParameters.consideration.length; ++i) {
                 // Retrieve the consideration item.
-                ConsiderationItem memory considerationItem = (orderParameters.consideration[i]);
+                ConsiderationItem memory considerationItem = (
+                    orderParameters.consideration[i]
+                );
 
                 // Apply fraction & derive considerationItem amount to transfer.
                 uint256 amount = _applyFraction(
@@ -286,52 +246,49 @@ contract OrderFulfiller is BasicOrderFulfiller, CriteriaResolution, AmountDerive
                     considerationItem.endAmount,
                     numerator,
                     denominator,
-                    startTime,
-                    endTime,
+                    orderParameters.startTime,
+                    orderParameters.endTime,
                     true
                 );
 
-                // Use assembly to set overloaded considerationItem arguments.
-                assembly {
-                    // Write derived fractional amount to startAmount as amount.
-                    mstore(add(considerationItem, ReceivedItem_amount_offset), amount)
+                // Create Received Item from Offer item.
+                ReceivedItem memory receivedItem = ReceivedItem(
+                    considerationItem.itemType,
+                    considerationItem.token,
+                    considerationItem.identifierOrCriteria,
+                    amount,
+                    considerationItem.recipient
+                );
+                // Add ReceivedItem to structs array.
+                orderToExecute.receivedItems[i] = receivedItem;
 
-                    // Write original recipient to endAmount as recipient.
-                    mstore(
-                        add(considerationItem, ReceivedItem_recipient_offset),
-                        mload(add(considerationItem, ConsiderationItem_recipient_offset))
-                    )
-                }
-
-                if (considerationItem.itemType == ItemType.NATIVE) {
-                    // Get the current available balance of native tokens.
-                    assembly {
-                        nativeTokenBalance := selfbalance()
-                    }
-
+                if (receivedItem.itemType == ItemType.NATIVE) {
                     // Ensure that sufficient native tokens are still available.
-                    if (amount > nativeTokenBalance) {
-                        _revertInsufficientNativeTokensSupplied();
+                    if (amount > address(this).balance) {
+                        revert InsufficientNativeTokensSupplied();
                     }
                 }
 
                 // Transfer item from caller to recipient specified by the item.
-                _toConsiderationItemInput(_transfer)(considerationItem, msg.sender, fulfillerConduitKey, accumulator);
+                _transfer(
+                    receivedItem,
+                    msg.sender,
+                    fulfillerConduitKey,
+                    accumulatorStruct
+                );
             }
         }
 
         // Trigger any remaining accumulated transfers via call to the conduit.
-        _triggerIfArmed(accumulator);
+        _triggerIfArmed(accumulatorStruct);
 
-        // Determine whether any native token balance remains.
-        assembly {
-            nativeTokenBalance := selfbalance()
+        // If any native token remains after fulfillments...
+        if (address(this).balance != 0) {
+            // return it to the caller.
+            _transferNativeTokens(payable(msg.sender), address(this).balance);
         }
-
-        // Return any remaining native token balance to the caller.
-        if (nativeTokenBalance != 0) {
-            _transferNativeTokens(payable(msg.sender), nativeTokenBalance);
-        }
+        // Return the order to execute.
+        return orderToExecute;
     }
 
     /**

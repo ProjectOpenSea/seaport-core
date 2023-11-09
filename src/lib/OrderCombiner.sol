@@ -12,12 +12,15 @@ import {
     FulfillmentComponent,
     OfferItem,
     OrderParameters,
-    ReceivedItem
+    ReceivedItem,
+    SpentItem
 } from "seaport-types/src/lib/ConsiderationStructs.sol";
 
 import {OrderFulfiller} from "./OrderFulfiller.sol";
 
 import {FulfillmentApplier} from "./FulfillmentApplier.sol";
+
+import {AccumulatorStruct, OrderToExecute} from "../reference/ConsiderationStructs.sol";
 
 import {
     _revertConsiderationNotMet,
@@ -622,21 +625,21 @@ contract OrderCombiner is OrderFulfiller, FulfillmentApplier {
      *      item for an arbitrary number of fulfilled orders has been met and to
      *      trigger associated executions, transferring the respective items.
      *
-     * @param advancedOrders  The orders to check and perform executions for.
-     * @param executions      An array of elements indicating the sequence of
-     *                        transfers to perform when fulfilling the given
-     *                        orders.
-     * @param orderHashes     An array of order hashes for each order.
-     * @param recipient       The intended recipient for all items that do not
-     *                        already have a designated recipient and are not
-     *                        used as part of a provided fulfillment.
-     * @param containsNonOpen A boolean indicating whether any restricted or
-     *                        contract orders are present within the provided
-     *                        array of advanced orders.
+     * @param executions         An array of uncompressed elements indicating
+     *                           the sequence of transfers to perform when
+     *                           fulfilling the given orders.
      *
-     * @return availableOrders An array of booleans indicating if each order
-     *                         with an index corresponding to the index of the
-     *                         returned boolean was fulfillable or not.
+     * @param executions         An array of elements indicating the sequence of
+     *                           transfers to perform when fulfilling the given
+     *                           orders.
+     * @param orderHashes        An array of order hashes for each order.
+     * @param containsNonOpen    A boolean indicating whether any restricted or
+     *                           contract orders are present within the provided
+     *                           array of advanced orders.
+     *
+     * @return availableOrders   An array of booleans indicating if each order
+     *                           with an index corresponding to the index of the
+     *                           returned boolean was fulfillable or not.
      */
     function _performFinalChecksAndExecuteOrders(
         AdvancedOrder[] memory advancedOrders,
@@ -644,185 +647,217 @@ contract OrderCombiner is OrderFulfiller, FulfillmentApplier {
         bytes32[] memory orderHashes,
         address recipient,
         bool containsNonOpen
-    ) internal returns (bool[] memory /* availableOrders */ ) {
+    ) internal returns (bool[] memory availableOrders) {
         // Retrieve the length of the advanced orders array and place on stack.
         uint256 totalOrders = advancedOrders.length;
 
         // Initialize array for tracking available orders.
-        bool[] memory availableOrders = new bool[](totalOrders);
+        availableOrders = new bool[](totalOrders);
 
-        // Initialize an accumulator array. From this point forward, no new
-        // memory regions can be safely allocated until the accumulator is no
-        // longer being utilized, as the accumulator operates in an open-ended
-        // fashion from this memory pointer; existing memory may still be
-        // accessed and modified, however.
-        bytes memory accumulator = new bytes(AccumulatorDisarmed);
+        // Convert Advanced Orders to Orders To Execute
+        OrderToExecute[] memory ordersToExecute = _convertAdvancedToOrdersToExecute(advancedOrders);
+
+        // Create the accumulator struct.
+        AccumulatorStruct memory accumulatorStruct;
 
         {
-            // Declare a variable for the available native token balance.
-            uint256 nativeTokenBalance;
-
-            // Retrieve the length of the executions array and place on stack.
-            uint256 totalExecutions = executions.length;
-
             // Iterate over each execution.
-            for (uint256 i = 0; i < totalExecutions;) {
+            for (uint256 i = 0; i < executions.length; ++i) {
                 // Retrieve the execution and the associated received item.
                 Execution memory execution = executions[i];
                 ReceivedItem memory item = execution.item;
 
                 // If execution transfers native tokens, reduce value available.
                 if (item.itemType == ItemType.NATIVE) {
-                    // Get the current available balance of native tokens.
-                    assembly {
-                        nativeTokenBalance := selfbalance()
-                    }
-
                     // Ensure that sufficient native tokens are still available.
-                    if (item.amount > nativeTokenBalance) {
-                        _revertInsufficientNativeTokensSupplied();
+                    if (item.amount > address(this).balance) {
+                        revert InsufficientNativeTokensSupplied();
                     }
                 }
 
                 // Transfer the item specified by the execution.
-                _transfer(item, execution.offerer, execution.conduitKey, accumulator);
+                _transfer(
+                    item,
+                    execution.offerer,
+                    execution.conduitKey,
+                    accumulatorStruct
+                );
+            }
+        }
 
-                // Skip overflow check as for loop is indexed starting at zero.
-                unchecked {
-                    ++i;
+        // Duplicate recipient onto stack to avoid stack-too-deep.
+        address _recipient = recipient;
+
+        // Iterate over orders to ensure all consideration items are met.
+        for (uint256 i = 0; i < ordersToExecute.length; ++i) {
+            // Retrieve the order in question.
+            OrderToExecute memory orderToExecute = ordersToExecute[i];
+
+            // Skip consideration item checks for order if not fulfilled.
+            if (orderToExecute.numerator == 0) {
+                // Note: orders do not need to be marked as unavailable as a
+                // new memory region has been allocated. Review carefully if
+                // altering compiler version or managing memory manually.
+                continue;
+            }
+
+            // Mark the order as available.
+            availableOrders[i] = true;
+
+            // Retrieve the original order in question.
+            AdvancedOrder memory advancedOrder = advancedOrders[i];
+
+            // Retrieve the order parameters.
+            OrderParameters memory parameters = advancedOrder.parameters;
+
+            {
+                // Retrieve offer items.
+                OfferItem[] memory offer = parameters.offer;
+
+                // Read length of offer array & place on the stack.
+                uint256 totalOfferItems = offer.length;
+
+                // Iterate over each offer item to restore it.
+                for (uint256 j = 0; j < totalOfferItems; ++j) {
+                    SpentItem memory offerSpentItem = orderToExecute.spentItems[
+                        j
+                    ];
+
+                    // Retrieve remaining amount on the offer item.
+                    uint256 unspentAmount = offerSpentItem.amount;
+
+                    // Retrieve original amount on the offer item.
+                    uint256 originalAmount = orderToExecute
+                        .spentItemOriginalAmounts[j];
+
+                    // Transfer to recipient if unspent amount is not zero.
+                    // Note that the transfer will not be reflected in the
+                    // executions array.
+                    if (unspentAmount != 0) {
+                        _transfer(
+                            _convertSpentItemToReceivedItemWithRecipient(
+                                offerSpentItem,
+                                _recipient
+                            ),
+                            parameters.offerer,
+                            parameters.conduitKey,
+                            accumulatorStruct
+                        );
+                    }
+
+                    // Restore original amount on the offer item.
+                    offerSpentItem.amount = originalAmount;
+                }
+            }
+
+            {
+                // Retrieve consideration items to ensure they are fulfilled.
+                ReceivedItem[] memory consideration = (
+                    orderToExecute.receivedItems
+                );
+
+                // Iterate over each consideration item to ensure it is met.
+                for (uint256 j = 0; j < consideration.length; ++j) {
+                    // Retrieve remaining amount on the consideration item.
+                    uint256 unmetAmount = consideration[j].amount;
+
+                    // Revert if the remaining amount is not zero.
+                    if (unmetAmount != 0) {
+                        revert ConsiderationNotMet(i, j, unmetAmount);
+                    }
+
+                    // Restore original amount.
+                    consideration[j].amount = orderToExecute
+                        .receivedItemOriginalAmounts[j];
+                }
+            }
+
+            {
+                // Get offer items as well.
+                SpentItem[] memory offer = (orderToExecute.spentItems);
+
+                // Iterate over each consideration item to ensure it is met.
+                for (uint256 j = 0; j < offer.length; ++j) {
+                    // Restore original amount.
+                    offer[j].amount = orderToExecute.spentItemOriginalAmounts[
+                        j
+                    ];
                 }
             }
         }
 
-        // Skip overflow checks as all for loops are indexed starting at zero.
-        unchecked {
-            // Iterate over each order.
-            for (uint256 i = 0; i < totalOrders; ++i) {
-                // Retrieve the order in question.
-                AdvancedOrder memory advancedOrder = advancedOrders[i];
+        // Trigger any remaining accumulated transfers via call to the
+        // conduit.
+        _triggerIfArmed(accumulatorStruct);
 
-                // Skip the order in question if not being not fulfilled.
-                if (advancedOrder.numerator == 0) {
-                    // Explicitly set availableOrders at the given index to
-                    // guard against the possibility of dirtied memory.
-                    availableOrders[i] = false;
-                    continue;
-                }
-
-                // Mark the order as available.
-                availableOrders[i] = true;
-
-                // Retrieve the order parameters.
-                OrderParameters memory parameters = advancedOrder.parameters;
-
-                {
-                    // Retrieve offer items.
-                    OfferItem[] memory offer = parameters.offer;
-
-                    // Read length of offer array & place on the stack.
-                    uint256 totalOfferItems = offer.length;
-
-                    // Iterate over each offer item to restore it.
-                    for (uint256 j = 0; j < totalOfferItems; ++j) {
-                        // Retrieve the offer item in question.
-                        OfferItem memory offerItem = offer[j];
-
-                        // Transfer to recipient if unspent amount is not zero.
-                        // Note that the transfer will not be reflected in the
-                        // executions array.
-                        if (offerItem.startAmount != 0) {
-                            // Replace the endAmount parameter with the recipient to
-                            // make offerItem compatible with the ReceivedItem input
-                            // to _transfer and cache the original endAmount so it
-                            // can be restored after the transfer.
-                            uint256 originalEndAmount = _replaceEndAmountWithRecipient(offerItem, recipient);
-
-                            // Transfer excess offer item amount to recipient.
-                            _toOfferItemInput(_transfer)(
-                                offerItem, parameters.offerer, parameters.conduitKey, accumulator
-                            );
-
-                            // Restore the original endAmount in offerItem.
-                            assembly {
-                                mstore(add(offerItem, ReceivedItem_recipient_offset), originalEndAmount)
-                            }
-                        }
-
-                        // Restore original amount on the offer item.
-                        offerItem.startAmount = offerItem.endAmount;
-                    }
-                }
-
-                {
-                    // Read consideration items & ensure they are fulfilled.
-                    ConsiderationItem[] memory consideration = (parameters.consideration);
-
-                    // Read length of consideration array & place on stack.
-                    uint256 totalConsiderationItems = consideration.length;
-
-                    // Iterate over each consideration item.
-                    for (uint256 j = 0; j < totalConsiderationItems; ++j) {
-                        ConsiderationItem memory considerationItem = (consideration[j]);
-
-                        // Retrieve remaining amount on consideration item.
-                        uint256 unmetAmount = considerationItem.startAmount;
-
-                        // Revert if the remaining amount is not zero.
-                        if (unmetAmount != 0) {
-                            _revertConsiderationNotMet(i, j, unmetAmount);
-                        }
-
-                        // Utilize assembly to restore the original value.
-                        assembly {
-                            // Write recipient to startAmount.
-                            mstore(
-                                add(considerationItem, ReceivedItem_amount_offset),
-                                mload(add(considerationItem, ConsiderationItem_recipient_offset))
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        // Trigger any accumulated transfers via call to the conduit.
-        _triggerIfArmed(accumulator);
-
-        // Determine whether any native token balance remains.
-        uint256 remainingNativeTokenBalance;
-        assembly {
-            remainingNativeTokenBalance := selfbalance()
-        }
-
-        // Return any remaining native token balance to the caller.
-        if (remainingNativeTokenBalance != 0) {
-            _transferNativeTokens(payable(msg.sender), remainingNativeTokenBalance);
+        // If any native token remains after fulfillments, return it to the
+        // caller.
+        if (address(this).balance != 0) {
+            _transferNativeTokens(payable(msg.sender), address(this).balance);
         }
 
         // If any restricted or contract orders are present in the group of
         // orders being fulfilled, perform any validateOrder or ratifyOrder
         // calls after all executions and related transfers are complete.
         if (containsNonOpen) {
-            // Iterate over each order a second time.
-            for (uint256 i = 0; i < totalOrders;) {
-                // Ensure the order in question is being fulfilled.
-                if (availableOrders[i]) {
-                    // Check restricted orders and contract orders.
-                    _assertRestrictedAdvancedOrderValidity(advancedOrders[i], orderHashes, orderHashes[i]);
+            // Iterate over orders to ensure all consideration items are met.
+            for (uint256 i = 0; i < ordersToExecute.length; ++i) {
+                // Retrieve the order in question.
+                OrderToExecute memory orderToExecute = ordersToExecute[i];
+
+                // Skip consideration item checks for order if not fulfilled.
+                if (orderToExecute.numerator == 0) {
+                    continue;
                 }
 
-                // Skip overflow checks as for loop is indexed starting at zero.
-                unchecked {
-                    ++i;
-                }
+                // Retrieve the original order in question.
+                AdvancedOrder memory advancedOrder = advancedOrders[i];
+
+                // Ensure restricted orders have valid submitter or pass check.
+                _assertRestrictedAdvancedOrderValidity(
+                    advancedOrder,
+                    orderToExecute,
+                    orderHashes,
+                    orderHashes[i],
+                    advancedOrder.parameters.zoneHash,
+                    advancedOrder.parameters.orderType,
+                    orderToExecute.offerer,
+                    advancedOrder.parameters.zone
+                );
             }
         }
 
-        // Clear the reentrancy guard.
-        _clearReentrancyGuard();
-
         // Return the array containing available orders.
         return availableOrders;
+    }
+
+    /**
+     * @dev Internal function to convert a spent item to an equivalent
+     *      ReceivedItem with a specified recipient.
+     *
+     * @param offerItem          The "offerItem" represented by a SpentItem
+     *                           struct.
+     * @param recipient          The intended recipient of the converted
+     *                           ReceivedItem
+     *
+     * @return ReceivedItem      The derived ReceivedItem including the
+     *                           specified recipient.
+     */
+    function _convertSpentItemToReceivedItemWithRecipient(
+        SpentItem memory offerItem,
+        address recipient
+    ) internal pure returns (ReceivedItem memory) {
+        address payable _recipient;
+        _recipient = payable(recipient);
+
+        return
+            ReceivedItem(
+                offerItem.itemType,
+                offerItem.token,
+                offerItem.identifier,
+                offerItem.amount,
+                _recipient
+            );
     }
 
     /**
