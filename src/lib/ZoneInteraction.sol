@@ -3,9 +3,22 @@ pragma solidity ^0.8.17;
 
 import {OrderType} from "seaport-types/src/lib/ConsiderationEnums.sol";
 
-import {AdvancedOrder, BasicOrderParameters, OrderParameters} from "seaport-types/src/lib/ConsiderationStructs.sol";
+import {
+    AdvancedOrder, 
+    BasicOrderParameters, 
+    OrderParameters, 
+    ZoneParameters
+} from "seaport-types/src/lib/ConsiderationStructs.sol";
+
+import {OrderToExecute} from "../reference/ConsiderationStructs.sol";
+
+import { ZoneInterface } from "seaport-types/src/interfaces/ZoneInterface.sol";
 
 import {ZoneInteractionErrors} from "seaport-types/src/interfaces/ZoneInteractionErrors.sol";
+
+import {
+    ContractOffererInterface
+} from "seaport-types/src/interfaces/ContractOffererInterface.sol";
 
 import {LowLevelHelpers} from "./LowLevelHelpers.sol";
 
@@ -63,63 +76,68 @@ contract ZoneInteraction is ConsiderationEncoder, ZoneInteractionErrors, LowLeve
     }
 
     /**
-     * @dev Internal function to determine the post-execution validity of
-     *      restricted and contract orders. Restricted orders where the caller
-     *      is not the zone must successfully call `validateOrder` with the
-     *      correct magic value returned. Contract orders must successfully call
-     *      `ratifyOrder` with the correct magic value returned.
+     * @dev Internal view function to determine if a proxy should be utilized
+     *      for a given order and to ensure that the submitter is allowed by the
+     *      order type.
      *
-     * @param advancedOrder The advanced order in question.
-     * @param orderHashes   The order hashes of each order included as part of
-     *                      the current fulfillment.
-     * @param orderHash     The hash of the order.
+     * @param advancedOrder  The order in question.
+     * @param orderHashes    The order hashes of each order supplied alongside
+     *                       the current order as part of a "match" or "fulfill
+     *                       available" variety of order fulfillment.
+     * @param orderHash      The hash of the order.
+     * @param zoneHash       The hash to provide upon calling the zone.
+     * @param orderType      The type of the order.
+     * @param offerer        The offerer in question.
+     * @param zone           The zone in question.
      */
     function _assertRestrictedAdvancedOrderValidity(
         AdvancedOrder memory advancedOrder,
+        OrderToExecute memory orderToExecute,
         bytes32[] memory orderHashes,
-        bytes32 orderHash
+        bytes32 orderHash,
+        bytes32 zoneHash,
+        OrderType orderType,
+        address offerer,
+        address zone
     ) internal {
-        // Declare variables that will be assigned based on the order type.
-        address target;
-        uint256 errorSelector;
-        MemoryPointer callData;
-        uint256 size;
-
-        // Retrieve the parameters of the order in question.
-        OrderParameters memory parameters = advancedOrder.parameters;
-
-        // OrderType 2-3 require zone to be caller or approve via validateOrder.
-        if (_isRestrictedAndCallerNotZone(parameters.orderType, parameters.zone)) {
-            // Encode the `validateOrder` call in memory.
-            (callData, size) = _encodeValidateOrder(orderHash, parameters, advancedOrder.extraData, orderHashes);
-
-            // Set the target to the zone.
-            target = (parameters.toMemoryPointer().offset(OrderParameters_zone_offset).readAddress());
-
-            // Set the restricted-order-specific error selector.
-            errorSelector = InvalidRestrictedOrder_error_selector;
-        } else if (parameters.orderType == OrderType.CONTRACT) {
-            // Set the target to the offerer (note the offerer has no offset).
-            target = parameters.toMemoryPointer().readAddress();
-
-            // Shift the target 96 bits to the left.
-            uint256 shiftedOfferer;
-            assembly {
-                shiftedOfferer := shl(ContractOrder_orderHash_offerer_shift, target)
+        // Order type 2-3 require zone or offerer be caller or zone to approve.
+        if (
+            (orderType == OrderType.FULL_RESTRICTED ||
+                orderType == OrderType.PARTIAL_RESTRICTED) && msg.sender != zone
+        ) {
+            // Validate the order.
+            if (
+                ZoneInterface(zone).validateOrder(
+                    ZoneParameters({
+                        orderHash: orderHash,
+                        fulfiller: msg.sender,
+                        offerer: offerer,
+                        offer: orderToExecute.spentItems,
+                        consideration: orderToExecute.receivedItems,
+                        extraData: advancedOrder.extraData,
+                        orderHashes: orderHashes,
+                        startTime: advancedOrder.parameters.startTime,
+                        endTime: advancedOrder.parameters.endTime,
+                        zoneHash: zoneHash
+                    })
+                ) != ZoneInterface.validateOrder.selector
+            ) {
+                revert InvalidRestrictedOrder(orderHash);
             }
-
-            // Encode the `ratifyOrder` call in memory.
-            (callData, size) =
-                _encodeRatifyOrder(orderHash, parameters, advancedOrder.extraData, orderHashes, shiftedOfferer);
-
-            // Set the contract-order-specific error selector.
-            errorSelector = InvalidContractOrder_error_selector;
-        } else {
-            return;
+        } else if (orderType == OrderType.CONTRACT) {
+            // Ratify the contract order.
+            if (
+                ContractOffererInterface(offerer).ratifyOrder(
+                    orderToExecute.spentItems,
+                    orderToExecute.receivedItems,
+                    advancedOrder.extraData,
+                    orderHashes,
+                    uint256(orderHash) ^ (uint256(uint160(offerer)) << 96)
+                ) != ContractOffererInterface.ratifyOrder.selector
+            ) {
+                revert InvalidContractOrder(orderHash);
+            }
         }
-
-        // Perform call and ensure a corresponding magic value was returned.
-        _callAndCheckStatus(target, orderHash, callData, size, errorSelector);
     }
 
     /**
