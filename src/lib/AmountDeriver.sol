@@ -154,7 +154,7 @@ contract AmountDeriver is AmountDerivationErrors {
      *
      * @return amount The received item to transfer with the final amount.
      */
-    function _applyFraction(
+    function _applyFractionHelper(
         uint256 startAmount,
         uint256 endAmount,
         FractionData memory fractionData,
