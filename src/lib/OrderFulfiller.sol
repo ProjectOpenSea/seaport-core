@@ -15,7 +15,7 @@ import {
     SpentItem
 } from "seaport-types/src/lib/ConsiderationStructs.sol";
 
-import {BasicOrderFulfiller} from "./BasicOrderFulfiller.sol";
+import {OrderValidator} from "./OrderValidator.sol";
 
 import {CriteriaResolution} from "./CriteriaResolution.sol";
 
@@ -40,7 +40,7 @@ import {
  *         single order is being fulfilled and where basic order fulfillment is
  *         not available as an option.
  */
-contract OrderFulfiller is BasicOrderFulfiller, CriteriaResolution, AmountDeriver {
+contract OrderFulfiller is OrderValidator, CriteriaResolution, AmountDeriver {
     /**
      * @dev Derive and set hashes, reference chainId, and associated domain
      *      separator during deployment.
@@ -49,7 +49,7 @@ contract OrderFulfiller is BasicOrderFulfiller, CriteriaResolution, AmountDerive
      *                          that may optionally be used to transfer approved
      *                          ERC20/721/1155 tokens.
      */
-    constructor(address conduitController) BasicOrderFulfiller(conduitController) {}
+    constructor(address conduitController) OrderValidator(conduitController) {}
 
     /**
      * @dev Internal function to validate an order and update its status, adjust
@@ -163,6 +163,16 @@ contract OrderFulfiller is BasicOrderFulfiller, CriteriaResolution, AmountDerive
         bytes32 fulfillerConduitKey,
         address recipient
     ) internal returns (OrderToExecute memory orderToExecute) {
+        // Derive order duration, time elapsed, and time remaining.
+        // Store in memory to avoid stack too deep issues.
+        FractionData memory fractionData = FractionData(
+            numerator,
+            denominator,
+            fulfillerConduitKey,
+            orderParameters.startTime,
+            orderParameters.endTime
+        );
+
         // Create the accumulator struct.
         AccumulatorStruct memory accumulatorStruct;
 
@@ -197,10 +207,7 @@ contract OrderFulfiller is BasicOrderFulfiller, CriteriaResolution, AmountDerive
                 uint256 amount = _applyFraction(
                     offerItem.startAmount,
                     offerItem.endAmount,
-                    numerator,
-                    denominator,
-                    orderParameters.startTime,
-                    orderParameters.endTime,
+                    fractionData,
                     false
                 );
 
@@ -244,10 +251,7 @@ contract OrderFulfiller is BasicOrderFulfiller, CriteriaResolution, AmountDerive
                 uint256 amount = _applyFraction(
                     considerationItem.startAmount,
                     considerationItem.endAmount,
-                    numerator,
-                    denominator,
-                    orderParameters.startTime,
-                    orderParameters.endTime,
+                    fractionData,
                     true
                 );
 

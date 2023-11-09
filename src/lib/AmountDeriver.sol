@@ -3,6 +3,8 @@ pragma solidity ^0.8.17;
 
 import {AmountDerivationErrors} from "seaport-types/src/interfaces/AmountDerivationErrors.sol";
 
+import {FractionData} from "../reference/ConsiderationStructs.sol";
+
 import {
     Error_selector_offset,
     InexactFraction_error_length,
@@ -145,11 +147,8 @@ contract AmountDeriver is AmountDerivationErrors {
      *
      * @param startAmount     The starting amount of the item.
      * @param endAmount       The ending amount of the item.
-     * @param numerator       A value indicating the portion of the order that
-     *                        should be filled.
-     * @param denominator     A value indicating the total size of the order.
-     * @param startTime       The starting time of the order.
-     * @param endTime         The end time of the order.
+     * @param fractionData    A struct containing the data used to apply a
+     *                        fraction to an order.
      * @param roundUp         A boolean indicating whether the resultant
      *                        amount should be rounded up or down.
      *
@@ -158,23 +157,31 @@ contract AmountDeriver is AmountDerivationErrors {
     function _applyFraction(
         uint256 startAmount,
         uint256 endAmount,
-        uint256 numerator,
-        uint256 denominator,
-        uint256 startTime,
-        uint256 endTime,
+        FractionData memory fractionData,
         bool roundUp
     ) internal view returns (uint256 amount) {
         // If start amount equals end amount, apply fraction to end amount.
         if (startAmount == endAmount) {
-            // Apply fraction to end amount.
-            amount = _getFraction(numerator, denominator, endAmount);
+            amount = _getFraction(
+                fractionData.numerator,
+                fractionData.denominator,
+                endAmount
+            );
         } else {
-            // Otherwise, apply fraction to both and interpolated final amount.
+            // Otherwise, apply fraction to both to interpolated final amount.
             amount = _locateCurrentAmount(
-                _getFraction(numerator, denominator, startAmount),
-                _getFraction(numerator, denominator, endAmount),
-                startTime,
-                endTime,
+                _getFraction(
+                    fractionData.numerator,
+                    fractionData.denominator,
+                    startAmount
+                ),
+                _getFraction(
+                    fractionData.numerator,
+                    fractionData.denominator,
+                    endAmount
+                ),
+                fractionData.startTime,
+                fractionData.endTime,
                 roundUp
             );
         }
