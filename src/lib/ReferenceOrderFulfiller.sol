@@ -1,46 +1,43 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.17;
+pragma solidity ^0.8.13;
 
-import {ItemType, OrderType} from "seaport-types/src/lib/ConsiderationEnums.sol";
-
-import {AccumulatorStruct, FractionData, OrderToExecute} from "../reference/ConsiderationStructs.sol";
+import { ItemType, OrderType } from "seaport-types/src/lib/ConsiderationEnums.sol";
 
 import {
     AdvancedOrder,
     ConsiderationItem,
     CriteriaResolver,
     OfferItem,
+    Order,
     OrderParameters,
     ReceivedItem,
     SpentItem
 } from "seaport-types/src/lib/ConsiderationStructs.sol";
 
-import {OrderValidator} from "./OrderValidator.sol";
-
-import {CriteriaResolution} from "./CriteriaResolution.sol";
-
-import {AmountDeriver} from "./AmountDeriver.sol";
+import {
+    AccumulatorStruct,
+    FractionData,
+    OrderToExecute
+} from "./ReferenceConsiderationStructs.sol";
 
 import {
-    _revertInsufficientNativeTokensSupplied,
-    _revertInvalidNativeOfferItem
-} from "seaport-types/src/lib/ConsiderationErrors.sol";
+    ReferenceBasicOrderFulfiller
+} from "./ReferenceBasicOrderFulfiller.sol";
 
-import {
-    AccumulatorDisarmed,
-    ConsiderationItem_recipient_offset,
-    ReceivedItem_amount_offset,
-    ReceivedItem_recipient_offset
-} from "seaport-types/src/lib/ConsiderationConstants.sol";
+import { ReferenceCriteriaResolution } from "./ReferenceCriteriaResolution.sol";
+
+import { ReferenceAmountDeriver } from "./ReferenceAmountDeriver.sol";
 
 /**
  * @title OrderFulfiller
  * @author 0age
- * @notice OrderFulfiller contains logic related to order fulfillment where a
- *         single order is being fulfilled and where basic order fulfillment is
- *         not available as an option.
+ * @notice OrderFulfiller contains logic related to order fulfillment.
  */
-contract OrderFulfiller is OrderValidator, CriteriaResolution, AmountDeriver {
+contract ReferenceOrderFulfiller is
+    ReferenceBasicOrderFulfiller,
+    ReferenceCriteriaResolution,
+    ReferenceAmountDeriver
+{
     /**
      * @dev Derive and set hashes, reference chainId, and associated domain
      *      separator during deployment.
@@ -49,7 +46,9 @@ contract OrderFulfiller is OrderValidator, CriteriaResolution, AmountDeriver {
      *                          that may optionally be used to transfer approved
      *                          ERC20/721/1155 tokens.
      */
-    constructor(address conduitController) OrderValidator(conduitController) {}
+    constructor(
+        address conduitController
+    ) ReferenceBasicOrderFulfiller(conduitController) {}
 
     /**
      * @dev Internal function to validate an order and update its status, adjust
@@ -71,8 +70,8 @@ contract OrderFulfiller is OrderValidator, CriteriaResolution, AmountDeriver {
      * @param fulfillerConduitKey A bytes32 value indicating what conduit, if
      *                            any, to source the fulfiller's token approvals
      *                            from. The zero hash signifies that no conduit
-     *                            should be used, with direct approvals set on
-     *                            Consideration.
+     *                            should be used (and direct approvals set on
+     *                            Consideration).
      * @param recipient           The intended recipient for all received items.
      *
      * @return A boolean indicating whether the order has been fulfilled.
@@ -84,39 +83,37 @@ contract OrderFulfiller is OrderValidator, CriteriaResolution, AmountDeriver {
         address recipient
     ) internal returns (bool) {
         // Validate order, update status, and determine fraction to fill.
-        (bytes32 orderHash, uint256 fillNumerator, uint256 fillDenominator) =
-            _validateOrderAndUpdateStatus(advancedOrder, true);
-
-        // Create an array with length 1 containing the order.
-        AdvancedOrder[] memory advancedOrders = new AdvancedOrder[](1);
-
-        // Populate the order as the first and only element of the new array.
-        advancedOrders[0] = advancedOrder;
+        (
+            bytes32 orderHash,
+            uint256 fillNumerator,
+            uint256 fillDenominator,
+            OrderToExecute memory orderToExecute
+        ) = _validateOrderAndUpdateStatus(advancedOrder, true);
 
         // Apply criteria resolvers using generated orders and details arrays.
-        _applyCriteriaResolvers(advancedOrders, criteriaResolvers);
+        _applyCriteriaResolversAdvanced(advancedOrder, criteriaResolvers);
 
         // Retrieve the order parameters after applying criteria resolvers.
-        OrderParameters memory orderParameters = advancedOrders[0].parameters;
+        OrderParameters memory orderParameters = advancedOrder.parameters;
 
         // Perform each item transfer with the appropriate fractional amount.
-        OrderToExecute memory orderToExecute = _applyFractionsAndTransferEach(
-            orderParameters, 
-            fillNumerator, 
-            fillDenominator, 
-            fulfillerConduitKey, 
+        orderToExecute = _applyFractionsAndTransferEach(
+            orderParameters,
+            fillNumerator,
+            fillDenominator,
+            fulfillerConduitKey,
             recipient
         );
 
-        // Declare empty bytes32 array and populate with the order hash.
-        bytes32[] memory orderHashes = new bytes32[](1);
-        orderHashes[0] = orderHash;
+        // Declare bytes32 array with this order's hash
+        bytes32[] memory priorOrderHashes = new bytes32[](1);
+        priorOrderHashes[0] = orderHash;
 
         // Ensure restricted orders have a valid submitter or pass a zone check.
         _assertRestrictedAdvancedOrderValidity(
             advancedOrder,
             orderToExecute,
-            orderHashes,
+            priorOrderHashes,
             orderHash,
             orderParameters.zoneHash,
             orderParameters.orderType,
@@ -125,13 +122,13 @@ contract OrderFulfiller is OrderValidator, CriteriaResolution, AmountDeriver {
         );
 
         // Emit an event signifying that the order has been fulfilled.
-        _emitOrderFulfilledEvent(
+        emit OrderFulfilled(
             orderHash,
             orderParameters.offerer,
             orderParameters.zone,
             recipient,
-            orderParameters.offer,
-            orderParameters.consideration
+            orderToExecute.spentItems,
+            orderToExecute.receivedItems
         );
 
         return true;
@@ -204,7 +201,7 @@ contract OrderFulfiller is OrderValidator, CriteriaResolution, AmountDeriver {
                 }
 
                 // Apply fill fraction to derive offer item amount to transfer.
-                uint256 amount = _applyFractionReference(
+                uint256 amount = _applyFraction(
                     offerItem.startAmount,
                     offerItem.endAmount,
                     fractionData,
@@ -248,7 +245,7 @@ contract OrderFulfiller is OrderValidator, CriteriaResolution, AmountDeriver {
                 );
 
                 // Apply fraction & derive considerationItem amount to transfer.
-                uint256 amount = _applyFractionReference(
+                uint256 amount = _applyFraction(
                     considerationItem.startAmount,
                     considerationItem.endAmount,
                     fractionData,
@@ -277,7 +274,7 @@ contract OrderFulfiller is OrderValidator, CriteriaResolution, AmountDeriver {
                 _transfer(
                     receivedItem,
                     msg.sender,
-                    fulfillerConduitKey,
+                    fractionData.fulfillerConduitKey,
                     accumulatorStruct
                 );
             }
@@ -296,39 +293,50 @@ contract OrderFulfiller is OrderValidator, CriteriaResolution, AmountDeriver {
     }
 
     /**
-     * @dev Internal function to emit an OrderFulfilled event. OfferItems are
-     *      translated into SpentItems and ConsiderationItems are translated
-     *      into ReceivedItems.
+     * @dev Internal pure function to convert an order to an advanced order with
+     *      numerator and denominator of 1 and empty extraData.
      *
-     * @param orderHash     The order hash.
-     * @param offerer       The offerer for the order.
-     * @param zone          The zone for the order.
-     * @param recipient     The recipient of the order, or the null address if
-     *                      the order was fulfilled via order matching.
-     * @param offer         The offer items for the order.
-     * @param consideration The consideration items for the order.
+     * @param order The order to convert.
+     *
+     * @return advancedOrder The new advanced order.
      */
-    function _emitOrderFulfilledEvent(
-        bytes32 orderHash,
-        address offerer,
-        address zone,
-        address recipient,
-        OfferItem[] memory offer,
-        ConsiderationItem[] memory consideration
-    ) internal {
-        // Cast already-modified offer memory region as spent items.
-        SpentItem[] memory spentItems;
-        assembly {
-            spentItems := offer
+    function _convertOrderToAdvanced(
+        Order calldata order
+    ) internal pure returns (AdvancedOrder memory advancedOrder) {
+        // Convert to partial order (1/1 or full fill) and return new value.
+        advancedOrder = AdvancedOrder(
+            order.parameters,
+            1,
+            1,
+            order.signature,
+            ""
+        );
+    }
+
+    /**
+     * @dev Internal pure function to convert an array of orders to an array of
+     *      advanced orders with numerator and denominator of 1.
+     *
+     * @param orders The orders to convert.
+     *
+     * @return advancedOrders The new array of partial orders.
+     */
+    function _convertOrdersToAdvanced(
+        Order[] calldata orders
+    ) internal pure returns (AdvancedOrder[] memory advancedOrders) {
+        // Read the number of orders from calldata and place on the stack.
+        uint256 totalOrders = orders.length;
+
+        // Allocate new empty array for each partial order in memory.
+        advancedOrders = new AdvancedOrder[](totalOrders);
+
+        // Iterate over the given orders.
+        for (uint256 i = 0; i < totalOrders; ++i) {
+            // Convert to partial order (1/1 or full fill) and update array.
+            advancedOrders[i] = _convertOrderToAdvanced(orders[i]);
         }
 
-        // Cast already-modified consideration memory region as received items.
-        ReceivedItem[] memory receivedItems;
-        assembly {
-            receivedItems := consideration
-        }
-
-        // Emit an event signifying that the order has been fulfilled.
-        emit OrderFulfilled(orderHash, offerer, zone, recipient, spentItems, receivedItems);
+        // Return the array of advanced orders.
+        return advancedOrders;
     }
 }

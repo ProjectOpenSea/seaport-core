@@ -1,56 +1,23 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.17;
+pragma solidity ^0.8.13;
 
-import {ConduitInterface} from "seaport-types/src/interfaces/ConduitInterface.sol";
+import { ConduitItemType } from "seaport-types/src/conduit/lib/ConduitEnums.sol";
+
+import {
+    ConduitInterface
+} from "seaport-types/src/interfaces/ConduitInterface.sol";
 
 import { ConduitTransfer } from "seaport-types/src/conduit/lib/ConduitStructs.sol";
 
-import {ConduitItemType} from "seaport-types/src/conduit/lib/ConduitEnums.sol";
+import { ItemType } from "seaport-types/src/lib/ConsiderationEnums.sol";
 
-import {ItemType} from "seaport-types/src/lib/ConsiderationEnums.sol";
+import { ReceivedItem } from "seaport-types/src/lib/ConsiderationStructs.sol";
 
-import {ReceivedItem} from "seaport-types/src/lib/ConsiderationStructs.sol";
+import { ReferenceVerifiers } from "./ReferenceVerifiers.sol";
 
-import {Verifiers} from "./Verifiers.sol";
+import { ReferenceTokenTransferrer } from "./ReferenceTokenTransferrer.sol";
 
-import {TokenTransferrer} from "./TokenTransferrer.sol";
-
-import {AccumulatorStruct} from "../reference/ConsiderationStructs.sol";
-
-import {
-    Accumulator_array_length_ptr,
-    Accumulator_array_offset_ptr,
-    Accumulator_array_offset,
-    Accumulator_conduitKey_ptr,
-    Accumulator_itemSizeOffsetDifference,
-    Accumulator_selector_ptr,
-    AccumulatorArmed,
-    AccumulatorDisarmed,
-    Conduit_transferItem_amount_ptr,
-    Conduit_transferItem_from_ptr,
-    Conduit_transferItem_identifier_ptr,
-    Conduit_transferItem_size,
-    Conduit_transferItem_to_ptr,
-    Conduit_transferItem_token_ptr,
-    FreeMemoryPointerSlot,
-    OneWord,
-    TwoWords
-} from "seaport-types/src/lib/ConsiderationConstants.sol";
-
-import {
-    Error_selector_offset,
-    NativeTokenTransferGenericFailure_error_account_ptr,
-    NativeTokenTransferGenericFailure_error_amount_ptr,
-    NativeTokenTransferGenericFailure_error_length,
-    NativeTokenTransferGenericFailure_error_selector
-} from "seaport-types/src/lib/ConsiderationErrorConstants.sol";
-
-import {
-    _revertInvalidCallToConduit,
-    _revertInvalidConduit,
-    _revertInvalidERC721TransferAmount,
-    _revertUnusedItemParameters
-} from "seaport-types/src/lib/ConsiderationErrors.sol";
+import { AccumulatorStruct } from "./ReferenceConsiderationStructs.sol";
 
 /**
  * @title Executor
@@ -58,7 +25,7 @@ import {
  * @notice Executor contains functions related to processing executions (i.e.
  *         transferring items, either directly or via conduits).
  */
-contract Executor is Verifiers, TokenTransferrer {
+contract ReferenceExecutor is ReferenceVerifiers, ReferenceTokenTransferrer {
     /**
      * @dev Derive and set hashes, reference chainId, and associated domain
      *      separator during deployment.
@@ -67,7 +34,9 @@ contract Executor is Verifiers, TokenTransferrer {
      *                          that may optionally be used to transfer approved
      *                          ERC20/721/1155 tokens.
      */
-    constructor(address conduitController) Verifiers(conduitController) {}
+    constructor(
+        address conduitController
+    ) ReferenceVerifiers(conduitController) {}
 
     /**
      * @dev Internal function to transfer a given item.
@@ -141,44 +110,27 @@ contract Executor is Verifiers, TokenTransferrer {
 
     /**
      * @dev Internal function to transfer Ether or other native tokens to a
-     *      given recipient.
+     *      given recipient. Note that this reference implementation deviates
+     *      from the primary contract, which "bubbles up" revert data when
+     *      present (the reference contract always throws a generic error).
      *
      * @param to     The recipient of the transfer.
      * @param amount The amount to transfer.
      */
-    function _transferNativeTokens(address payable to, uint256 amount) internal {
+    function _transferNativeTokens(
+        address payable to,
+        uint256 amount
+    ) internal {
         // Ensure that the supplied amount is non-zero.
         _assertNonZeroAmount(amount);
 
         // Declare a variable indicating whether the call was successful or not.
-        bool success;
-
-        assembly {
-            // Transfer the native token and store if it succeeded or not.
-            success := call(gas(), to, amount, 0, 0, 0, 0)
-        }
+        (bool success, ) = to.call{ value: amount }("");
 
         // If the call fails...
         if (!success) {
-            // Revert and pass the revert reason along if one was returned.
-            _revertWithReasonIfOneIsReturned();
-
-            // Otherwise, revert with a generic error message.
-            assembly {
-                // Store left-padded selector with push4, mem[28:32] = selector
-                mstore(0, NativeTokenTransferGenericFailure_error_selector)
-
-                // Write `to` and `amount` arguments.
-                mstore(NativeTokenTransferGenericFailure_error_account_ptr, to)
-                mstore(NativeTokenTransferGenericFailure_error_amount_ptr, amount)
-
-                // revert(abi.encodeWithSignature(
-                //     "NativeTokenTransferGenericFailure(address,uint256)",
-                //     to,
-                //     amount
-                // ))
-                revert(Error_selector_offset, NativeTokenTransferGenericFailure_error_length)
-            }
+            // Revert with a generic error message.
+            revert NativeTokenTransferGenericFailure(to, amount);
         }
     }
 
@@ -402,77 +354,6 @@ contract Executor is Verifiers, TokenTransferrer {
     }
 
     /**
-     * @dev Internal function to perform a call to the conduit corresponding to
-     *      a given conduit key based on the offset and size of the calldata in
-     *      question in memory.
-     *
-     * @param conduitKey     A bytes32 value indicating what corresponding
-     *                       conduit, if any, to source token approvals from.
-     *                       The zero hash signifies that no conduit should be
-     *                       used, with direct approvals set on this contract.
-     * @param callDataOffset The memory pointer where calldata is contained.
-     * @param callDataSize   The size of calldata in memory.
-     */
-    function _callConduitUsingOffsets(bytes32 conduitKey, uint256 callDataOffset, uint256 callDataSize) internal {
-        // Derive the address of the conduit using the conduit key.
-        address conduit = _deriveConduit(conduitKey);
-
-        bool success;
-        bytes4 result;
-
-        // call the conduit.
-        assembly {
-            // Ensure first word of scratch space is empty.
-            mstore(0, 0)
-
-            // Perform call, placing first word of return data in scratch space.
-            success := call(gas(), conduit, 0, callDataOffset, callDataSize, 0, OneWord)
-
-            // Take value from scratch space and place it on the stack.
-            result := mload(0)
-        }
-
-        // If the call failed...
-        if (!success) {
-            // Pass along whatever revert reason was given by the conduit.
-            _revertWithReasonIfOneIsReturned();
-
-            // Otherwise, revert with a generic error.
-            _revertInvalidCallToConduit(conduit);
-        }
-
-        // Ensure result was extracted and matches EIP-1271 magic value.
-        if (result != ConduitInterface.execute.selector) {
-            _revertInvalidConduit(conduitKey, conduit);
-        }
-    }
-
-    /**
-     * @dev Internal function get the conduit derived by the provided
-     *      conduit key.
-     *
-     * @param conduitKey A bytes32 value indicating what corresponding conduit,
-     *                   if any, to source token approvals from. This value is
-     *                   the "salt" parameter supplied by the deployer (i.e. the
-     *                   conduit controller) when deploying the given conduit.
-     *
-     * @return conduit   The address of the conduit associated with the given
-     *                   conduit key.
-     */
-    function _getConduit(
-        bytes32 conduitKey
-    ) internal view returns (address conduit) {
-        // Derive the address of the conduit using the conduit key.
-        conduit = _deriveConduit(conduitKey);
-
-        // If the conduit does not have runtime code (i.e. is not deployed)...
-        if (conduit.code.length == 0) {
-            // Revert with an error indicating an invalid conduit.
-            revert InvalidConduit(conduitKey, conduit);
-        }
-    }
-
-    /**
      * @dev Internal pure function to place an item transfer into an accumulator
      *      that collects a series of transfers to execute against a given
      *      conduit in a single call.
@@ -545,5 +426,30 @@ contract Executor is Verifiers, TokenTransferrer {
 
         // Set the conduitkey of the current transfers.
         accumulatorStruct.conduitKey = conduitKey;
+    }
+
+    /**
+     * @dev Internal function get the conduit derived by the provided
+     *      conduit key.
+     *
+     * @param conduitKey A bytes32 value indicating what corresponding conduit,
+     *                   if any, to source token approvals from. This value is
+     *                   the "salt" parameter supplied by the deployer (i.e. the
+     *                   conduit controller) when deploying the given conduit.
+     *
+     * @return conduit   The address of the conduit associated with the given
+     *                   conduit key.
+     */
+    function _getConduit(
+        bytes32 conduitKey
+    ) internal view returns (address conduit) {
+        // Derive the address of the conduit using the conduit key.
+        conduit = _deriveConduit(conduitKey);
+
+        // If the conduit does not have runtime code (i.e. is not deployed)...
+        if (conduit.code.length == 0) {
+            // Revert with an error indicating an invalid conduit.
+            revert InvalidConduit(conduitKey, conduit);
+        }
     }
 }

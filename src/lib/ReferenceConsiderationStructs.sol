@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.17;
+pragma solidity ^0.8.13;
+
+import { ItemType, OrderType } from "seaport-types/src/lib/ConsiderationEnums.sol";
 
 import {
     ReceivedItem,
@@ -7,6 +9,44 @@ import {
 } from "seaport-types/src/lib/ConsiderationStructs.sol";
 
 import { ConduitTransfer } from "seaport-types/src/conduit/lib/ConduitStructs.sol";
+
+// This file should only be used by the Reference Implementation
+
+/**
+ * @dev A struct used to hold Consideration Indexes and Fulfillment validity.
+ */
+struct ConsiderationItemIndicesAndValidity {
+    uint256 orderIndex;
+    uint256 itemIndex;
+    bool invalidFulfillment;
+    bool missingItemAmount;
+}
+
+/**
+ * @dev A struct used to hold all ItemTypes/Token of a Basic Order Fulfillment
+ *       used in _prepareBasicFulfillmentFromCalldata
+ */
+struct FulfillmentItemTypes {
+    OrderType orderType;
+    ItemType receivedItemType;
+    ItemType additionalRecipientsItemType;
+    address additionalRecipientsToken;
+    ItemType offeredItemType;
+}
+
+/**
+ * @dev A struct used to hold all the hashes of a Basic Order Fulfillment
+ *       used in _prepareBasicFulfillmentFromCalldata and _hashOrder
+ */
+struct BasicFulfillmentHashes {
+    bytes32 typeHash;
+    bytes32 orderHash;
+    bytes32 offerItemsHash;
+    bytes32[] considerationHashes;
+    bytes32 receivedItemsHash;
+    bytes32 receivedItemHash;
+    bytes32 offerItemHash;
+}
 
 /**
  * @dev A struct that is an explicit version of advancedOrders without
