@@ -618,6 +618,31 @@ contract ReferenceOrderCombiner is
         return (availableOrders, executions);
     }
 
+    // discovers the order index and item index of any offer items that are unspent
+    function _discoverUnspentOfferItems(
+        OrderToExecute[] memory ordersToExecute
+    ) internal pure returns (uint256 totalItems) {
+        // Iterate over orders to execute
+        for (uint256 i = 0; i < ordersToExecute.length; ++i) {
+            // Retrieve the order 
+            OrderToExecute memory orderToExecute = ordersToExecute[i];
+
+            // Read length of spent item array and place on the stack.
+            uint256 totalSpentItems = orderToExecute.spentItems.length;
+
+            // Iterate over each offer item
+            for (uint256 j = 0; j < totalSpentItems; ++j) {
+                // get the spent item
+                SpentItem memory spentItem = orderToExecute.spentItems[j];
+
+                // if the unspent amount is not zero, then mark the offer item
+                if (spentItem.amount != 0) {
+                    ++totalItems;
+                }
+            }
+        }
+    }
+
     /**
      * @dev Internal function to perform a final check that each consideration
      *      item for an arbitrary number of fulfilled orders has been met and to
@@ -648,14 +673,29 @@ contract ReferenceOrderCombiner is
         address recipient,
         bool containsNonOpen
     ) internal returns (bool[] memory availableOrders) {
-        // Retrieve the length of the advanced orders array and place on stack.
-        uint256 totalOrders = advancedOrders.length;
+        /////////////////////////////////////////////////////
+        // NOTE: commented out to prevent `stack too deep` //
+        /////////////////////////////////////////////////////
+        // 
+        // // Retrieve the length of the advanced orders array and place on stack.
+        // uint256 totalOrders = advancedOrders.length;
 
         // Initialize array for tracking available orders.
-        availableOrders = new bool[](totalOrders);
+        availableOrders = new bool[](advancedOrders.length);
 
         // Create the accumulator struct.
         AccumulatorStruct memory accumulatorStruct;
+
+        // discover the number of unspent offer items, since these are not marked as `Execution` structs by seaport.
+        uint256 unspentItemsLength = _discoverUnspentOfferItems(ordersToExecute);
+
+        // an array which will hold all the received items made by seaport, including any unspent offer items
+        // which are transferred to the recipient address
+        ReceivedItem[] memory totalReceivedItems = new ReceivedItem[](executions.length + unspentItemsLength);
+
+        // a counter for all the unspent items that have been processed and added to the `totalReceivedItems` array. 
+        // It is initialized to `executions.length` because each execution will be added to the received items array first.
+        uint256 totalProcessedReceivedItems = executions.length;
 
         {
             // Iterate over each execution.
@@ -671,6 +711,9 @@ contract ReferenceOrderCombiner is
                         revert InsufficientNativeTokensSupplied();
                     }
                 }
+
+                // add the received item to the total received items array
+                totalReceivedItems[i] = item;
 
                 // Transfer the item specified by the execution.
                 _transfer(
@@ -707,35 +750,50 @@ contract ReferenceOrderCombiner is
             // Retrieve the order parameters.
             OrderParameters memory parameters = advancedOrder.parameters;
 
-            {
-                // Retrieve offer items.
-                OfferItem[] memory offer = parameters.offer;
-
-                // Read length of offer array & place on the stack.
-                uint256 totalOfferItems = offer.length;
+            {   
+                ////////////////////////////////////////////////////
+                // NOTE: commented out to prevent `stack too deep` /
+                ////////////////////////////////////////////////////
+                // 
+                // // Retrieve offer items.
+                // OfferItem[] memory offer = parameters.offer;
+                // 
+                // // Read length of offer array & place on the stack.
+                // uint256 totalOfferItems = offer.length;
 
                 // Iterate over each offer item to restore it.
-                for (uint256 j = 0; j < totalOfferItems; ++j) {
+                for (uint256 j = 0; j < parameters.offer.length; ++j) {
                     SpentItem memory offerSpentItem = orderToExecute.spentItems[
                         j
                     ];
 
-                    // Retrieve remaining amount on the offer item.
-                    uint256 unspentAmount = offerSpentItem.amount;
+                    /////////////////////////////////////////////////////
+                    // NOTE: commented out to prevent `stack too deep` //
+                    /////////////////////////////////////////////////////
+                    //
+                    // // Retrieve remaining amount on the offer item.
+                    // uint256 unspentAmount = offerSpentItem.amount;
+                    // 
+                    // // Retrieve original amount on the offer item.
+                    // uint256 originalAmount = orderToExecute
+                    //     .spentItemOriginalAmounts[j];
 
-                    // Retrieve original amount on the offer item.
-                    uint256 originalAmount = orderToExecute
-                        .spentItemOriginalAmounts[j];
+                    // convert spent item to received item
+                    ReceivedItem memory convertedReceivedItem = _convertSpentItemToReceivedItemWithRecipient(
+                        offerSpentItem,
+                        _recipient
+                    );
 
                     // Transfer to recipient if unspent amount is not zero.
                     // Note that the transfer will not be reflected in the
                     // executions array.
-                    if (unspentAmount != 0) {
+                    if (offerSpentItem.amount != 0) {
+                        
+                        // add the received item, then increment the number of processed received items
+                        totalReceivedItems[totalProcessedReceivedItems++] = convertedReceivedItem;
+
                         _transfer(
-                            _convertSpentItemToReceivedItemWithRecipient(
-                                offerSpentItem,
-                                _recipient
-                            ),
+                            convertedReceivedItem,
                             parameters.offerer,
                             parameters.conduitKey,
                             accumulatorStruct
@@ -743,7 +801,7 @@ contract ReferenceOrderCombiner is
                     }
 
                     // Restore original amount on the offer item.
-                    offerSpentItem.amount = originalAmount;
+                    offerSpentItem.amount = orderToExecute.spentItemOriginalAmounts[j];
                 }
             }
 
@@ -797,8 +855,17 @@ contract ReferenceOrderCombiner is
         // orders being fulfilled, perform any validateOrder or ratifyOrder
         // calls after all executions and related transfers are complete.
         if (containsNonOpen) {
+            // place order hashes on top of the stack
+            bytes32[] memory _orderHashes = orderHashes;
+
+            // place orders to execute on top of the stack
+            OrderToExecute[] memory _orderToExecute = ordersToExecute;
+
+            // place advanced orders back on top of the stack
+            AdvancedOrder[] memory _advancedOrders = advancedOrders;
+
             // Iterate over orders to ensure all consideration items are met.
-            for (uint256 i = 0; i < ordersToExecute.length; ++i) {
+            for (uint256 i = 0; i < _orderToExecute.length; ++i) {
                 // Retrieve the order in question.
                 OrderToExecute memory orderToExecute = ordersToExecute[i];
 
@@ -808,14 +875,15 @@ contract ReferenceOrderCombiner is
                 }
 
                 // Retrieve the original order in question.
-                AdvancedOrder memory advancedOrder = advancedOrders[i];
+                AdvancedOrder memory advancedOrder = _advancedOrders[i];
 
                 // Ensure restricted orders have valid submitter or pass check.
                 _assertRestrictedAdvancedOrderValidity(
                     advancedOrder,
                     orderToExecute,
-                    orderHashes,
-                    orderHashes[i],
+                    totalReceivedItems,
+                    _orderHashes,
+                    _orderHashes[i],
                     advancedOrder.parameters.zoneHash,
                     advancedOrder.parameters.orderType,
                     orderToExecute.offerer,

@@ -2,6 +2,7 @@
 pragma solidity ^0.8.13;
 
 import { ZoneInterface } from "seaport-types/src/interfaces/ZoneInterface.sol";
+import { ZoneInterface as RentalZoneInterface } from "../interfaces/RentalZoneInterface.sol";
 
 import {
     ContractOffererInterface
@@ -17,6 +18,7 @@ import {
     SpentItem,
     ZoneParameters
 } from "seaport-types/src/lib/ConsiderationStructs.sol";
+import {ZoneParameters as RentalZoneParameters} from "./rental/ConsiderationStructs.sol";
 
 import { OrderToExecute } from "./ReferenceConsiderationStructs.sol";
 
@@ -110,6 +112,7 @@ contract ReferenceZoneInteraction is ZoneInteractionErrors {
     function _assertRestrictedAdvancedOrderValidity(
         AdvancedOrder memory advancedOrder,
         OrderToExecute memory orderToExecute,
+        ReceivedItem[] memory totalReceivedItems,
         bytes32[] memory orderHashes,
         bytes32 orderHash,
         bytes32 zoneHash,
@@ -124,20 +127,21 @@ contract ReferenceZoneInteraction is ZoneInteractionErrors {
         ) {
             // Validate the order.
             if (
-                ZoneInterface(zone).validateOrder(
-                    ZoneParameters({
+                RentalZoneInterface(zone).validateOrder(
+                    RentalZoneParameters({
                         orderHash: orderHash,
                         fulfiller: msg.sender,
                         offerer: offerer,
                         offer: orderToExecute.spentItems,
                         consideration: orderToExecute.receivedItems,
+                        totalExecutions: totalReceivedItems,
                         extraData: advancedOrder.extraData,
                         orderHashes: orderHashes,
                         startTime: advancedOrder.parameters.startTime,
                         endTime: advancedOrder.parameters.endTime,
                         zoneHash: zoneHash
                     })
-                ) != ZoneInterface.validateOrder.selector
+                ) != RentalZoneInterface.validateOrder.selector
             ) {
                 revert InvalidRestrictedOrder(orderHash);
             }

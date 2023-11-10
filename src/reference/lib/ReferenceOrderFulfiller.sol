@@ -96,8 +96,11 @@ contract ReferenceOrderFulfiller is
         // Retrieve the order parameters after applying criteria resolvers.
         OrderParameters memory orderParameters = advancedOrder.parameters;
 
+        // Instantiate the total received items for the order
+        ReceivedItem[] memory totalReceivedItems;
+
         // Perform each item transfer with the appropriate fractional amount.
-        orderToExecute = _applyFractionsAndTransferEach(
+        (orderToExecute, totalReceivedItems) = _applyFractionsAndTransferEach(
             orderParameters,
             fillNumerator,
             fillDenominator,
@@ -113,6 +116,7 @@ contract ReferenceOrderFulfiller is
         _assertRestrictedAdvancedOrderValidity(
             advancedOrder,
             orderToExecute,
+            totalReceivedItems,
             priorOrderHashes,
             orderHash,
             orderParameters.zoneHash,
@@ -159,7 +163,7 @@ contract ReferenceOrderFulfiller is
         uint256 denominator,
         bytes32 fulfillerConduitKey,
         address recipient
-    ) internal returns (OrderToExecute memory orderToExecute) {
+    ) internal returns (OrderToExecute memory orderToExecute, ReceivedItem[] memory totalReceivedItems) {
         // Derive order duration, time elapsed, and time remaining.
         // Store in memory to avoid stack too deep issues.
         FractionData memory fractionData = FractionData(
@@ -182,6 +186,11 @@ contract ReferenceOrderFulfiller is
         // Create the array to store the spent items for event.
         orderToExecute.spentItems = new SpentItem[](
             orderParameters.offer.length
+        );
+
+        // Create the array to store all the items executed
+        totalReceivedItems = new ReceivedItem[](
+            orderParameters.offer.length + orderParameters.consideration.length
         );
 
         // Declare a nested scope to minimize stack depth.
@@ -217,6 +226,9 @@ contract ReferenceOrderFulfiller is
                     payable(recipient)
                 );
 
+                // add the item to the executed items array
+                totalReceivedItems[i] = receivedItem;
+
                 // Create Spent Item for the OrderFulfilled event.
                 orderToExecute.spentItems[i] = SpentItem(
                     receivedItem.itemType,
@@ -237,6 +249,9 @@ contract ReferenceOrderFulfiller is
 
         // Declare a nested scope to minimize stack depth.
         {
+            // put offer length at the top of the stack
+            uint256 offerLength = orderParameters.offer.length;
+
             // Iterate over each consideration on the order.
             for (uint256 i = 0; i < orderParameters.consideration.length; ++i) {
                 // Retrieve the consideration item.
@@ -262,6 +277,9 @@ contract ReferenceOrderFulfiller is
                 );
                 // Add ReceivedItem to structs array.
                 orderToExecute.receivedItems[i] = receivedItem;
+
+                // add the item to the executed items array
+                totalReceivedItems[i + offerLength] = receivedItem;
 
                 if (receivedItem.itemType == ItemType.NATIVE) {
                     // Ensure that sufficient native tokens are still available.
@@ -289,7 +307,7 @@ contract ReferenceOrderFulfiller is
             _transferNativeTokens(payable(msg.sender), address(this).balance);
         }
         // Return the order to execute.
-        return orderToExecute;
+        return (orderToExecute, totalReceivedItems);
     }
 
     /**
