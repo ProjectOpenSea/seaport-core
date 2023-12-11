@@ -3,7 +3,9 @@ solc = "0.8.22"
 src = "src"
 out = "out"
 libs = ["lib"]
-remappings = ['seaport-types/=lib/seaport-types/']
+remappings = [
+    "seaport-types/=lib/seaport-types/"
+]
 
 # solidity 0.8.22 defaults to the shanghai fork which introduces the PUSH0 opcode.
 # Most chains outside of mainnet have not implemented this opcode yet, so we explicitly
