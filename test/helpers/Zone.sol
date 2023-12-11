@@ -1,0 +1,48 @@
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity ^0.8.20;
+
+import {ZoneParameters, SpentItem, ReceivedItem} from "seaport-types/src/lib/ConsiderationStructs.sol";
+import {ZoneInterface} from "seaport-types/src/interfaces/ZoneInterface.sol";
+
+contract Zone {
+
+    // public valuues to test against
+    bytes32 public orderHash;
+    address public fulfiller;
+    address public offerer;
+    SpentItem[] public offer;
+    ReceivedItem[] public consideration;
+    bytes public extraData;
+    bytes32[] public orderHashes;
+    uint256 public startTime;
+    uint256 public endTime;
+    bytes32 public zoneHash;
+  
+    function validateOrder(
+        ZoneParameters calldata zoneParams
+    ) external returns (bytes4 validOrderMagicValue) {
+
+        // store all zone parameters
+        orderHash = zoneParams.orderHash;
+        fulfiller = zoneParams.fulfiller;
+        offerer = zoneParams.offerer;
+        extraData = zoneParams.extraData;
+        orderHashes = zoneParams.orderHashes;
+        startTime = zoneParams.startTime;
+        endTime = zoneParams.endTime;
+        zoneHash = zoneParams.zoneHash;
+
+        // push all offer items
+        for (uint256 i; i < zoneParams.offer.length; ++i) {
+            offer.push(zoneParams.offer[i]);
+        }
+
+        // push all consideration items
+        for (uint256 i = 0; i < zoneParams.consideration.length; ++i) {
+            consideration.push(zoneParams.consideration[i]);
+        }
+
+        // return the selector
+        validOrderMagicValue = ZoneInterface.validateOrder.selector;
+    }
+}

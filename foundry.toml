@@ -4,7 +4,9 @@ src = "src"
 out = "out"
 libs = ["lib"]
 remappings = [
-    "seaport-types/=lib/seaport-types/"
+    "seaport-types/=lib/seaport-types/",
+    "ds-test/=lib/forge-std/lib/ds-test/src/",
+    "forge-std/=lib/forge-std/src/"
 ]
 
 # solidity 0.8.22 defaults to the shanghai fork which introduces the PUSH0 opcode.
