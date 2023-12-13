@@ -104,14 +104,20 @@ contract OrderFulfiller is BasicOrderFulfiller, CriteriaResolution, AmountDerive
         OrderParameters memory orderParameters = advancedOrders[0].parameters;
 
         // Perform each item transfer with the appropriate fractional amount.
-        _applyFractionsAndTransferEach(orderParameters, fillNumerator, fillDenominator, fulfillerConduitKey, recipient);
+        ReceivedItem[] memory totalExecutions = _applyFractionsAndTransferEach(
+            orderParameters, 
+            fillNumerator, 
+            fillDenominator, 
+            fulfillerConduitKey, 
+            recipient
+        );
 
         // Declare empty bytes32 array and populate with the order hash.
         bytes32[] memory orderHashes = new bytes32[](1);
         orderHashes[0] = orderHash;
 
         // Ensure restricted orders have a valid submitter or pass a zone check.
-        _assertRestrictedAdvancedOrderValidity(advancedOrders[0], orderHashes, orderHash);
+        _rental_assertRestrictedAdvancedOrderValidity(advancedOrders[0], totalExecutions, orderHashes, orderHash);
 
         // Emit an event signifying that the order has been fulfilled.
         _emitOrderFulfilledEvent(
@@ -151,7 +157,12 @@ contract OrderFulfiller is BasicOrderFulfiller, CriteriaResolution, AmountDerive
         uint256 denominator,
         bytes32 fulfillerConduitKey,
         address recipient
-    ) internal {
+    ) internal returns (ReceivedItem[] memory totalExecutions) {
+        // Initialize total executions as the length of offer and consideration items
+        totalExecutions = new ReceivedItem[](
+            orderParameters.offer.length + orderParameters.consideration.length
+        );  
+
         // Read start time & end time from order parameters and place on stack.
         uint256 startTime = orderParameters.startTime;
         uint256 endTime = orderParameters.endTime;
@@ -332,6 +343,10 @@ contract OrderFulfiller is BasicOrderFulfiller, CriteriaResolution, AmountDerive
         if (nativeTokenBalance != 0) {
             _transferNativeTokens(payable(msg.sender), nativeTokenBalance);
         }
+
+        // encode the offer items and consideration items into a single array of executions. This step is done last
+        // because the offer and consideration items must first be converted to received items.
+        _encodeTotalExecutions(totalExecutions, orderParameters);
     }
 
     /**

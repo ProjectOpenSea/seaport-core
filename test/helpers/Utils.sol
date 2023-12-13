@@ -19,12 +19,6 @@ library Utils {
         address(bytes20(uint160(uint256(keccak256("hevm cheat code")))));
     Vm private constant vm = Vm(VM_ADDRESS);
 
-    function toMemoryPointer(bytes memory obj) internal pure returns (MemoryPointer ptr) {
-        assembly {
-            ptr := obj
-        }
-    }
-
     // function dumpMemory() internal pure {
     //     uint256 mSize;
     //     assembly { mSize := msize() }
@@ -42,6 +36,19 @@ library Utils {
     //         return (0, msize())
     //     }
     // }
+
+    // converts a bytes object into a memory pointer
+    function toMemoryPointer(bytes memory obj) internal pure returns (MemoryPointer ptr) {
+        assembly {
+            ptr := obj
+        }
+    }
+
+
+    // creates a mock address from a string
+    function mockAddress(string memory addressString) internal pure returns (address) {
+        return address(uint160(uint256(keccak256(abi.encode(addressString)))));
+    }
 
     // In `_applyFractionsAndTransferEach`, the consideration items are silently 
     // converted into received items. This mimics that transformation.
@@ -67,6 +74,7 @@ library Utils {
         }
     }
 
+    // Fetches the memory from a memory pointer with a specified size
     function fetchMemory(MemoryPointer currentPointer, uint256 size) internal pure returns (bytes memory data) {
         // fetch a pointer to the end of the memory
         MemoryPointer end = currentPointer.offset(size);

@@ -795,4 +795,54 @@ contract ConsiderationEncoder {
             size = OneWord + (length * ReceivedItem_size);
         }
     }
+
+    function _encodeTotalExecutions(ReceivedItem[] memory totalExecutions, OrderParameters memory orderParameters) internal view {
+            // Get the pointer to the length of the execution array
+            MemoryPointer executionLengthPtr = StructPointers.toMemoryPointer(totalExecutions);
+
+            // Keep track of a memory pointer to the head of the execution array
+            MemoryPointer executionHeadPtr = executionLengthPtr.next();
+
+            // Keep track of a memory pointer to the tail of the execution array
+            MemoryPointer offerHeadEndPtr = executionLengthPtr.next().offset(
+                orderParameters.offer.length << OneWordShift
+            );
+
+            MemoryPointer considerationHeadEndPtr = offerHeadEndPtr.offset(
+                orderParameters.consideration.length << OneWordShift
+            );
+
+            // Get the memory pointer to the order parameters struct.
+            MemoryPointer opPtr = orderParameters.toMemoryPointer();
+
+            // Get pointer to `orderParameters.offer.length` plus one word to get to the start of the data
+            MemoryPointer opOfferPointer = opPtr.offset(OrderParameters_offer_head_offset).readMemoryPointer().next();
+
+            // Get pointer to `orderParameters.consideration.length` plus one word to get to the start of the data
+            MemoryPointer opConsiderationPointer = opPtr.offset(OrderParameters_consideration_head_offset).readMemoryPointer().next();
+
+            while (executionHeadPtr.lt(offerHeadEndPtr)) {
+                // load the memory location where the execution head pointer is
+                MemoryPointer offerTail = executionHeadPtr.pptr();
+
+                // copy the offer item into the execution array
+                opOfferPointer.pptr().copy(offerTail, ReceivedItem_size);
+
+                // increment the head pointer and the offer pointer by one word
+                executionHeadPtr = executionHeadPtr.next();
+                opOfferPointer = opOfferPointer.next();
+            }
+
+            while (executionHeadPtr.lt(considerationHeadEndPtr)) {
+                // load the memory location where the execution head pointer is
+                MemoryPointer considerationTail = executionHeadPtr.pptr();
+
+                // copy the consideration item into the execution array
+                opConsiderationPointer.pptr().copy(considerationTail, ReceivedItem_size);
+
+                // increment the head pointer and the consideration pointer by one word
+                executionHeadPtr = executionHeadPtr.next();
+                opConsiderationPointer = opConsiderationPointer.next();
+            }
+        }
 }
