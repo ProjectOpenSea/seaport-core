@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.20;
 
-import {ZoneParameters, SpentItem, ReceivedItem} from "seaport-types/src/lib/ConsiderationStructs.sol";
-import {ZoneInterface} from "seaport-types/src/interfaces/ZoneInterface.sol";
+import {SpentItem, ReceivedItem} from "seaport-types/src/lib/ConsiderationStructs.sol";
+
+import {ZoneParameters} from "src/lib/rental/ConsiderationStructs.sol";
 
 contract Zone {
 
@@ -12,15 +13,14 @@ contract Zone {
     address public offerer;
     SpentItem[] public offer;
     ReceivedItem[] public consideration;
+    ReceivedItem[] public totalExecutions;
     bytes public extraData;
     bytes32[] public orderHashes;
     uint256 public startTime;
     uint256 public endTime;
     bytes32 public zoneHash;
   
-    function validateOrder(
-        ZoneParameters calldata zoneParams
-    ) external returns (bytes4 validOrderMagicValue) {
+    function validateOrder(ZoneParameters calldata zoneParams) external returns (bytes4 validOrderMagicValue) {
 
         // store all zone parameters
         orderHash = zoneParams.orderHash;
@@ -42,7 +42,12 @@ contract Zone {
             consideration.push(zoneParams.consideration[i]);
         }
 
+        // push all execution items
+        for (uint256 i = 0; i < zoneParams.totalExecutions.length; ++i) {
+            totalExecutions.push(zoneParams.totalExecutions[i]);
+        }
+
         // return the selector
-        validOrderMagicValue = ZoneInterface.validateOrder.selector;
+        validOrderMagicValue = Zone.validateOrder.selector;
     }
 }

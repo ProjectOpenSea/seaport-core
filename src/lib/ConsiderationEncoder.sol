@@ -57,7 +57,24 @@ import {
     ZoneParameters_zoneHash_offset
 } from "seaport-types/src/lib/ConsiderationConstants.sol";
 
-import {BasicOrderParameters, OrderParameters} from "seaport-types/src/lib/ConsiderationStructs.sol";
+import {
+    Rental_validateOrder_selector,
+    Rental_ZoneParameters_orderHash_offset,
+    Rental_ZoneParameters_fulfiller_offset,
+    Rental_ZoneParameters_offerer_offset,
+    Rental_ZoneParameters_offer_head_offset,
+    Rental_ZoneParameters_consideration_head_offset,
+    Rental_ZoneParameters_totalExecutions_head_offset,
+    Rental_ZoneParameters_extraData_head_offset,
+    Rental_ZoneParameters_orderHashes_head_offset,
+    Rental_ZoneParameters_startTime_offset,
+    Rental_ZoneParameters_endTime_offset,
+    Rental_ZoneParameters_zoneHash_offset,
+    Rental_ZoneParameters_base_tail_offset
+} from "src/lib/rental/ConsiderationConstants.sol";
+import {StructPointers} from "src/lib/rental/ConsiderationStructs.sol";
+
+import {BasicOrderParameters, OrderParameters, ReceivedItem} from "seaport-types/src/lib/ConsiderationStructs.sol";
 
 import {CalldataPointer, getFreeMemoryPointer, MemoryPointer} from "seaport-types/src/helpers/PointerLibraries.sol";
 
@@ -417,6 +434,132 @@ contract ConsiderationEncoder {
 
             // Derive final size including selector and ZoneParameters pointer.
             size = ZoneParameters_selectorAndPointer_length + tailOffset;
+        }
+    }
+
+     function _rental_encodeValidateOrder(
+        bytes32 orderHash,
+        ReceivedItem[] memory totalExecutions,
+        OrderParameters memory orderParameters,
+        bytes memory extraData,
+        bytes32[] memory orderHashes
+    ) internal view returns (MemoryPointer dst, uint256 size) {
+        // Get free memory pointer to write calldata to. This isn't allocated as
+        // it is only used for a single function call.
+        dst = getFreeMemoryPointer();
+
+        // Write validateOrder selector and get pointer to start of calldata.
+        dst.write(Rental_validateOrder_selector);
+        dst = dst.offset(validateOrder_selector_offset);
+
+        // Get pointer to the beginning of the encoded data.
+        MemoryPointer dstHead = dst.offset(validateOrder_head_offset);
+
+        // Write offset to zoneParameters to start of calldata.
+        dstHead.write(validateOrder_zoneParameters_offset);
+
+        // Reuse `dstHead` as pointer to zoneParameters.
+        dstHead = dstHead.offset(validateOrder_zoneParameters_offset);
+
+        // Write orderHash and fulfiller to zoneParameters.
+        dstHead.writeBytes32(orderHash);
+        dstHead.offset(Rental_ZoneParameters_fulfiller_offset).write(msg.sender);
+
+        // Get the memory pointer to the order parameters struct.
+        MemoryPointer src = orderParameters.toMemoryPointer();
+
+        // Copy offerer, startTime, endTime and zoneHash to zoneParameters.
+        dstHead.offset(Rental_ZoneParameters_offerer_offset).write(src.readUint256());
+        dstHead.offset(Rental_ZoneParameters_startTime_offset).write(
+            src.offset(OrderParameters_startTime_offset).readUint256()
+        );
+        dstHead.offset(Rental_ZoneParameters_endTime_offset).write(src.offset(OrderParameters_endTime_offset).readUint256());
+        dstHead.offset(Rental_ZoneParameters_zoneHash_offset).write(src.offset(OrderParameters_zoneHash_offset).readUint256());
+
+        // Initialize tail offset, used to populate the offer array.
+        uint256 tailOffset = Rental_ZoneParameters_base_tail_offset;
+
+        // Encode offer
+        {
+            // Write offset to `offer`.
+            dstHead.offset(Rental_ZoneParameters_offer_head_offset).write(tailOffset);
+
+            // Get pointer to `orderParameters.offer.length`.
+            MemoryPointer srcOfferPointer = src.offset(OrderParameters_offer_head_offset).readMemoryPointer();
+
+            // Encode the offer array as a `SpentItem[]`.
+            uint256 offerSize = _encodeSpentItems(srcOfferPointer, dstHead.offset(tailOffset));
+
+            unchecked {
+                // Increment tail offset, now used to populate consideration array.
+                tailOffset += offerSize;
+            }
+        }
+
+        // Encode consideration
+        {
+            // Write offset to consideration.
+            dstHead.offset(Rental_ZoneParameters_consideration_head_offset).write(tailOffset);
+
+            // Get pointer to `orderParameters.consideration.length`.
+            MemoryPointer srcConsiderationPointer =
+                src.offset(OrderParameters_consideration_head_offset).readMemoryPointer();
+
+            // Encode the consideration array as a `ReceivedItem[]`.
+            uint256 considerationSize =
+                _encodeConsiderationAsReceivedItems(srcConsiderationPointer, dstHead.offset(tailOffset));
+
+            unchecked {
+                // Increment tail offset, now used to populate totalExecutions array.
+                tailOffset += considerationSize;
+            }
+        }
+
+        // Encode totalExecutions
+        {
+            // Write offset to totalExecutions.
+            dstHead.offset(Rental_ZoneParameters_totalExecutions_head_offset).write(tailOffset);
+
+            // Encode the total exuections array.
+            uint256 totalExecutionsSize = _encodeConsiderationAsReceivedItems(
+                StructPointers.toMemoryPointer(totalExecutions), 
+                dstHead.offset(tailOffset)
+            );
+
+            unchecked {
+                // Increment tail offset, now used to populate extraData array.
+                tailOffset += totalExecutionsSize;
+            }
+        }
+
+        // Encode extraData
+        {
+            // Write offset to extraData.
+            dstHead.offset(Rental_ZoneParameters_extraData_head_offset).write(tailOffset);
+            // Copy extraData.
+            uint256 extraDataSize = _encodeBytes(toMemoryPointer(extraData), dstHead.offset(tailOffset));
+
+            unchecked {
+                // Increment tail offset, now used to populate orderHashes array.
+                tailOffset += extraDataSize;
+            }
+        }
+
+        // Encode orderHashes
+        {
+            // Write offset to orderHashes.
+            dstHead.offset(Rental_ZoneParameters_orderHashes_head_offset).write(tailOffset);
+
+            // Encode the order hashes array.
+            uint256 orderHashesSize = _encodeOrderHashes(toMemoryPointer(orderHashes), dstHead.offset(tailOffset));
+
+            unchecked {
+                // Increment the tail offset, now used to determine final size.
+                tailOffset += orderHashesSize;
+
+                // Derive final size including selector and ZoneParameters pointer.
+                size = ZoneParameters_selectorAndPointer_length + tailOffset;
+            }
         }
     }
 

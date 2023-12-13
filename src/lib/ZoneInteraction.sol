@@ -3,7 +3,12 @@ pragma solidity ^0.8.17;
 
 import {OrderType} from "seaport-types/src/lib/ConsiderationEnums.sol";
 
-import {AdvancedOrder, BasicOrderParameters, OrderParameters} from "seaport-types/src/lib/ConsiderationStructs.sol";
+import {
+    AdvancedOrder, 
+    BasicOrderParameters, 
+    OrderParameters, 
+    ReceivedItem
+} from "seaport-types/src/lib/ConsiderationStructs.sol";
 
 import {ZoneInteractionErrors} from "seaport-types/src/interfaces/ZoneInteractionErrors.sol";
 
@@ -92,6 +97,56 @@ contract ZoneInteraction is ConsiderationEncoder, ZoneInteractionErrors, LowLeve
         if (_isRestrictedAndCallerNotZone(parameters.orderType, parameters.zone)) {
             // Encode the `validateOrder` call in memory.
             (callData, size) = _encodeValidateOrder(orderHash, parameters, advancedOrder.extraData, orderHashes);
+
+            // Set the target to the zone.
+            target = (parameters.toMemoryPointer().offset(OrderParameters_zone_offset).readAddress());
+
+            // Set the restricted-order-specific error selector.
+            errorSelector = InvalidRestrictedOrder_error_selector;
+        } else if (parameters.orderType == OrderType.CONTRACT) {
+            // Set the target to the offerer (note the offerer has no offset).
+            target = parameters.toMemoryPointer().readAddress();
+
+            // Shift the target 96 bits to the left.
+            uint256 shiftedOfferer;
+            assembly {
+                shiftedOfferer := shl(ContractOrder_orderHash_offerer_shift, target)
+            }
+
+            // Encode the `ratifyOrder` call in memory.
+            (callData, size) =
+                _encodeRatifyOrder(orderHash, parameters, advancedOrder.extraData, orderHashes, shiftedOfferer);
+
+            // Set the contract-order-specific error selector.
+            errorSelector = InvalidContractOrder_error_selector;
+        } else {
+            return;
+        }
+
+
+        // Perform call and ensure a corresponding magic value was returned.
+        _callAndCheckStatus(target, orderHash, callData, size, errorSelector);
+    }
+
+    function _rental_assertRestrictedAdvancedOrderValidity(
+        AdvancedOrder memory advancedOrder,
+        ReceivedItem[] memory totalExecutions,
+        bytes32[] memory orderHashes,
+        bytes32 orderHash
+    ) internal {
+        // Declare variables that will be assigned based on the order type.
+        address target;
+        uint256 errorSelector;
+        MemoryPointer callData;
+        uint256 size;
+
+        // Retrieve the parameters of the order in question.
+        OrderParameters memory parameters = advancedOrder.parameters;
+
+        // OrderType 2-3 require zone to be caller or approve via validateOrder.
+        if (_isRestrictedAndCallerNotZone(parameters.orderType, parameters.zone)) {
+            // Encode the `validateOrder` call in memory.
+            (callData, size) = _rental_encodeValidateOrder(orderHash, totalExecutions, parameters, advancedOrder.extraData, orderHashes);
 
             // Set the target to the zone.
             target = (parameters.toMemoryPointer().offset(OrderParameters_zone_offset).readAddress());

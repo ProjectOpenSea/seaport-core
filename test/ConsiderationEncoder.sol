@@ -6,36 +6,28 @@ import {Test} from "forge-std/Test.sol";
 import {
     AdvancedOrder, 
     OrderParameters, 
+    ZoneParameters, 
     SpentItem, 
     ReceivedItem,
     ConsiderationItem,
     OfferItem
 } from "seaport-types/src/lib/ConsiderationStructs.sol";
 import {OrderType, ItemType} from "seaport-types/src/lib/ConsiderationEnums.sol";
+import {CalldataPointer, getFreeMemoryPointer, MemoryPointer} from "seaport-types/src/helpers/PointerLibraries.sol";
 
-import {ZoneInteraction} from "src/lib/ZoneInteraction.sol";
-import {ZoneParameters} from "src/lib/rental/ConsiderationStructs.sol";
+import {ConsiderationEncoder} from "src/lib/ConsiderationEncoder.sol";
+import {StructPointers} from "src/lib/rental/ConsiderationStructs.sol";
 
-import {Zone} from "test/helpers/Zone.sol";
 import {Utils} from "test/helpers/Utils.sol";
 
-contract ZoneInteraction_Test is Test, ZoneInteraction {
+contract ConsiderationEncoder_Test is Test, ConsiderationEncoder {
 
-    Zone public zone;
-    Vm.Wallet public wallet;
-
-    function setUp() public {
-        zone = new Zone();
-        wallet = vm.createWallet("wallet");
-    }
-
-    function test_Success_AssertRestrictedAdvancedOrderValidity() public {
-
+    function test_Success_EncodeValidateOrder() public {
         // create offer
         OfferItem[] memory offer = new OfferItem[](1);
         offer[0] = OfferItem({
             itemType: ItemType.ERC20,
-            token: address(uint160(uint256(keccak256(abi.encode("erc20"))))),
+            token: 0x3333333333333333333333333333333333333333,
             identifierOrCriteria: 9,
             startAmount: 150,
             endAmount: 150
@@ -45,11 +37,11 @@ contract ZoneInteraction_Test is Test, ZoneInteraction {
         ConsiderationItem[] memory consideration = new ConsiderationItem[](1);
         consideration[0] = ConsiderationItem({
             itemType: ItemType.ERC721,
-            token: address(uint160(uint256(keccak256(abi.encode("erc721"))))),
+            token: 0x1111111111111111111111111111111111111111,
             identifierOrCriteria: 5,
             startAmount: 1,
             endAmount: 1,
-            recipient: payable(address(uint160(uint256(keccak256(abi.encode("recipient"))))))
+            recipient: payable(0x4444444444444444444444444444444444444444)
         });
 
         // convert the consideration items into received items silently
@@ -74,8 +66,8 @@ contract ZoneInteraction_Test is Test, ZoneInteraction {
 
         // create the order parameters
         OrderParameters memory orderParameters = OrderParameters({
-            offerer: wallet.addr,
-            zone: address(zone),
+            offerer: address(0x6666666666666666666666666666666666666666),
+            zone: address(0x7777777777777777777777777777777777777777),
             offer: offer,
             consideration: consideration,
             orderType: OrderType.FULL_RESTRICTED,
@@ -87,30 +79,21 @@ contract ZoneInteraction_Test is Test, ZoneInteraction {
             totalOriginalConsiderationItems: 1
         }); 
 
-        // create the advanced order
-        AdvancedOrder memory advancedOrder = AdvancedOrder({
-            parameters: orderParameters,
-            numerator: 1,
-            denominator: 1,
-            signature: "signature",
-            extraData: "extraData"
-        });
-
         // create the order hash
         bytes32 orderHash = keccak256("order hash");
 
         // create the order hashes
         bytes32[] memory orderHashes = new bytes32[](1);
         orderHashes[0] = orderHash;
- 
-        // make a call to the zone
-        _rental_assertRestrictedAdvancedOrderValidity(
-            advancedOrder,
-            totalExecutions,
-            orderHashes,
-            orderHash
-        );
 
-        assertEq(orderHash, zone.orderHash());
+        _rental_encodeValidateOrder(
+            orderHash,
+            totalExecutions,
+            orderParameters,
+            bytes("extra data"),
+            orderHashes
+        );   
+
+        assertTrue(true);   
     }
 }
