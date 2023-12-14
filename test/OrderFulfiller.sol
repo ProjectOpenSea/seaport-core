@@ -21,8 +21,6 @@ import {ConduitController} from "src/conduit/ConduitController.sol";
 import {Utils} from "test/helpers/Utils.sol";
 import {Assertions} from "test/helpers/Assertions.sol";
 
-import "forge-std/console.sol";
-
 // Seaport performs checks to make sure tokens are contracts
 contract MockToken {}
 
