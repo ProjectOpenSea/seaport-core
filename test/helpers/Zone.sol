@@ -13,7 +13,7 @@ contract Zone {
     address public offerer;
     SpentItem[] public offer;
     ReceivedItem[] public consideration;
-    ReceivedItem[] public totalExecutions;
+    ReceivedItem[] private _totalExecutions;
     bytes public extraData;
     bytes32[] public orderHashes;
     uint256 public startTime;
@@ -44,10 +44,14 @@ contract Zone {
 
         // push all execution items
         for (uint256 i = 0; i < zoneParams.totalExecutions.length; ++i) {
-            totalExecutions.push(zoneParams.totalExecutions[i]);
+            _totalExecutions.push(zoneParams.totalExecutions[i]);
         }
 
         // return the selector
         validOrderMagicValue = Zone.validateOrder.selector;
+    }
+
+    function totalExecutions() external view returns (ReceivedItem[] memory items) {
+        return _totalExecutions;
     }
 }

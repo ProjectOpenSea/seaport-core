@@ -774,21 +774,20 @@ contract OrderCombiner is OrderFulfiller, FulfillmentApplier {
                         // Note that the transfer will not be reflected in the
                         // executions array.
                         if (offerItem.startAmount != 0) {
+                            // add the received item to the array of total executions
+                            totalExecutionItems[totalProcessedExecutionItems++] = ReceivedItem(
+                                offerItem.itemType,
+                                offerItem.token,
+                                offerItem.identifierOrCriteria,
+                                offerItem.endAmount,
+                                payable(_recipient)
+                            );
+
                             // Replace the endAmount parameter with the recipient to
                             // make offerItem compatible with the ReceivedItem input
                             // to _transfer and cache the original endAmount so it
                             // can be restored after the transfer.
                             uint256 originalEndAmount = _replaceEndAmountWithRecipient(offerItem, _recipient);
-
-                            // the memory layout of an offer item is identical to a received item, so the pointer
-                            // can be copied
-                            ReceivedItem memory receivedItem;
-                            assembly {
-                                receivedItem := offerItem
-                            }
-                            
-                            // add the received item to the array of total executions
-                            totalExecutionItems[totalProcessedExecutionItems++] = receivedItem;
 
                             // Transfer excess offer item amount to recipient.
                             _toOfferItemInput(_transfer)(

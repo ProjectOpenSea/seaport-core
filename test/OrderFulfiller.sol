@@ -93,39 +93,32 @@ contract OrderFulfiller_Test is Assertions {
 
         // create expected executions 
         ReceivedItem[] memory expectedExecutions = new ReceivedItem[](4);
-        expectedExecutions[0] = ReceivedItem({
-            itemType: offer[0].itemType,
-            token: offer[0].token,
-            identifier: offer[0].identifierOrCriteria,
-            amount: offer[0].startAmount,
-            recipient: payable(address(this))
-        });
-        expectedExecutions[1] = ReceivedItem({
-            itemType: offer[1].itemType,
-            token: offer[1].token,
-            identifier: offer[1].identifierOrCriteria,
-            amount: offer[1].startAmount,
-            recipient: payable(address(this))
-        });
-        expectedExecutions[2] = ReceivedItem({
-            itemType: consideration[0].itemType,
-            token: consideration[0].token,
-            identifier: consideration[0].identifierOrCriteria,
-            amount: consideration[0].startAmount,
-            recipient: payable(address(this))
-        });
-        expectedExecutions[3] = ReceivedItem({
-            itemType: consideration[1].itemType,
-            token: consideration[1].token,
-            identifier: consideration[1].identifierOrCriteria,
-            amount: consideration[1].startAmount,
-            recipient: payable(address(this))
-        });
+        for (uint256 i = 0; i < expectedExecutions.length; ++i) {
+            if (i < offer.length) {
+                OfferItem memory offerItem = offer[i];
+                expectedExecutions[i] = ReceivedItem({
+                    itemType: offerItem.itemType,
+                    token: offerItem.token,
+                    identifier: offerItem.identifierOrCriteria,
+                    amount: offerItem.startAmount,
+                    recipient: payable(address(this))
+                });
+            } else {
+                ConsiderationItem memory considerationItem = consideration[i - offer.length];
+                expectedExecutions[i] = ReceivedItem({
+                    itemType: considerationItem.itemType,
+                    token: considerationItem.token,
+                    identifier: considerationItem.identifierOrCriteria,
+                    amount: considerationItem.startAmount,
+                    recipient: payable(address(this))
+                });
+            }
+        }
 
         // create the order parameters
         OrderParameters memory orderParameters = OrderParameters({
-            offerer: address(0x6666666666666666666666666666666666666666),
-            zone: address(0x7777777777777777777777777777777777777777),
+            offerer: Utils.mockAddress("offerer"),
+            zone: Utils.mockAddress("zone"),
             offer: offer,
             consideration: consideration,
             orderType: OrderType.FULL_RESTRICTED,

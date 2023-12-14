@@ -20,11 +20,21 @@ import {Zone} from "test/helpers/Zone.sol";
 import {Utils} from "test/helpers/Utils.sol";
 
 contract ZoneInteraction_Test is Test, ZoneInteraction {
+    address mockERC20;
+    address mockERC721;
+    address mockOfferer;
+    address mockRecipient;
 
     Zone public zone;
     Vm.Wallet public wallet;
 
     function setUp() public {
+        // set mock addresses
+        mockERC20 = Utils.mockAddress("mockERC20");
+        mockERC721 = Utils.mockAddress("mockERC721");
+        mockOfferer = Utils.mockAddress("offerer");
+        mockRecipient = Utils.mockAddress("recipient");
+
         zone = new Zone();
         wallet = vm.createWallet("wallet");
     }
@@ -35,7 +45,7 @@ contract ZoneInteraction_Test is Test, ZoneInteraction {
         OfferItem[] memory offer = new OfferItem[](1);
         offer[0] = OfferItem({
             itemType: ItemType.ERC20,
-            token: address(uint160(uint256(keccak256(abi.encode("erc20"))))),
+            token: mockERC20,
             identifierOrCriteria: 9,
             startAmount: 150,
             endAmount: 150
@@ -45,11 +55,11 @@ contract ZoneInteraction_Test is Test, ZoneInteraction {
         ConsiderationItem[] memory consideration = new ConsiderationItem[](1);
         consideration[0] = ConsiderationItem({
             itemType: ItemType.ERC721,
-            token: address(uint160(uint256(keccak256(abi.encode("erc721"))))),
+            token: mockERC721,
             identifierOrCriteria: 5,
             startAmount: 1,
             endAmount: 1,
-            recipient: payable(address(uint160(uint256(keccak256(abi.encode("recipient"))))))
+            recipient: payable(mockRecipient)
         });
 
         // convert the consideration items into received items silently
@@ -58,18 +68,18 @@ contract ZoneInteraction_Test is Test, ZoneInteraction {
         // create total executions 
         ReceivedItem[] memory totalExecutions = new ReceivedItem[](2);
         totalExecutions[0] = ReceivedItem({
-            itemType: ItemType.ERC721,
-            token: 0x1111111111111111111111111111111111111111,
-            identifier: 5,
-            amount: 1,
-            recipient: payable(0x2222222222222222222222222222222222222222)
-        });
-        totalExecutions[1] = ReceivedItem({
             itemType: ItemType.ERC20,
-            token: address(0x3333333333333333333333333333333333333333),
+            token: mockERC20,
             identifier: 9,
             amount: 150,
-            recipient: payable(0x4444444444444444444444444444444444444444)
+            recipient: payable(mockRecipient)
+        });
+        totalExecutions[1] = ReceivedItem({
+            itemType: ItemType.ERC721,
+            token: mockERC721,
+            identifier: 5,
+            amount: 1,
+            recipient: payable(mockOfferer)
         });
 
         // create the order parameters

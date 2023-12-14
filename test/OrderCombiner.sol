@@ -80,8 +80,8 @@ contract OrderCombiner_Test is Assertions {
         });
 
         // create another offer which will not have a matching consideration
-        OfferItem[] memory unmatchedOffer = new OfferItem[](2);
-        offer[0] = OfferItem({
+        OfferItem[] memory unmatchedOffer = new OfferItem[](1);
+        unmatchedOffer[0] = OfferItem({
             itemType: ItemType.ERC20,
             token: mockERC20,
             identifierOrCriteria: 0,
@@ -156,53 +156,24 @@ contract OrderCombiner_Test is Assertions {
         });
 
         // create the executions array
-        Execution[] memory executions = new Execution[](4);
-        executions[0] = Execution({
-            item: ReceivedItem({
-                itemType: offer[0].itemType,
-                token: offer[0].token,
-                identifier: offer[0].identifierOrCriteria,
-                amount: offer[0].endAmount,
-                recipient: payable(mockRecipient)
-            }),
-            offerer: mockOfferer,
-            conduitKey: bytes32(0)
-        });
-        executions[1] = Execution({
-            item: ReceivedItem({
-                itemType: offer[1].itemType,
-                token: offer[1].token,
-                identifier: offer[1].identifierOrCriteria,
-                amount: offer[1].endAmount,
-                recipient: payable(mockRecipient)
-            }),
-            offerer: mockOfferer,
-            conduitKey: bytes32(0)
-        });
-        executions[2] = Execution({
-            item: ReceivedItem({
-                itemType: consideration[0].itemType,
-                token: consideration[0].token,
-                identifier: consideration[0].identifierOrCriteria,
-                amount: consideration[0].endAmount,
-                recipient: payable(mockOfferer)
-            }),
-            offerer: mockRecipient,
-            conduitKey: bytes32(0)
-        });
-        executions[3] = Execution({
-            item: ReceivedItem({
-                itemType: consideration[1].itemType,
-                token: consideration[1].token,
-                identifier: consideration[1].identifierOrCriteria,
-                amount: consideration[1].endAmount,
-                recipient: payable(mockOfferer)
-            }),
-            offerer: mockRecipient,
-            conduitKey: bytes32(0)
-        });
-
-
+        Execution[] memory executions = new Execution[](offer.length + consideration.length);
+        for (uint256 i = 0; i < executions.length; ++i) {
+            if (i < offer.length) {
+                executions[i] = Utils.offerToExecution(
+                    offer[i], 
+                    mockOfferer, 
+                    mockRecipient,
+                    bytes32(0)
+                );
+            } else {
+                 executions[i] = Utils.considerationToExecution(
+                    consideration[i - offer.length], 
+                    mockOfferer,
+                    bytes32(0)
+                );
+            }
+        }
+       
         // create the order hashes
         bytes32[] memory orderHashes = new bytes32[](2);
         orderHashes[0] = keccak256("order hash");
@@ -247,6 +218,8 @@ contract OrderCombiner_Test is Assertions {
             true
         );
 
-        // create an expected executions array which contains all the received items
+        ReceivedItem[] memory outputtedExecutions = zone.totalExecutions();
+
+        assertEq(outputtedExecutions.length, 10);
     }
 }

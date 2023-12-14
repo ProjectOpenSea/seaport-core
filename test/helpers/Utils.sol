@@ -6,7 +6,9 @@ import {Vm} from "forge-std/Vm.sol";
 import {getFreeMemoryPointer, MemoryPointer} from "seaport-types/src/helpers/PointerLibraries.sol";
 import {
     ReceivedItem,
-    ConsiderationItem
+    ConsiderationItem,
+    OfferItem,
+    Execution
 } from "seaport-types/src/lib/ConsiderationStructs.sol";
 import {
     ReceivedItem_amount_offset,
@@ -19,31 +21,12 @@ library Utils {
         address(bytes20(uint160(uint256(keccak256("hevm cheat code")))));
     Vm private constant vm = Vm(VM_ADDRESS);
 
-    // function dumpMemory() internal pure {
-    //     uint256 mSize;
-    //     assembly { mSize := msize() }
-
-    //     for (uint256 i = mSize; ; i -= 0x20) {
-    //         assembly {
-    //             mstore(add(i, 0x40), mload(i))
-    //         }
-    //         if (i == 0) break;
-    //     }
-
-    //     assembly {
-    //         mstore(0, 0x20)
-    //         mstore(0x20, mSize)
-    //         return (0, msize())
-    //     }
-    // }
-
     // converts a bytes object into a memory pointer
     function toMemoryPointer(bytes memory obj) internal pure returns (MemoryPointer ptr) {
         assembly {
             ptr := obj
         }
     }
-
 
     // creates a mock address from a string
     function mockAddress(string memory addressString) internal pure returns (address) {
@@ -100,6 +83,43 @@ library Utils {
         }
 
         return data;
+    }
+    
+    function offerToExecution(
+        OfferItem memory offer, 
+        address offerer, 
+        address recipient,
+        bytes32 conduitKey
+    ) internal pure returns (Execution memory execution) {
+        execution = Execution({
+            item: ReceivedItem({
+                itemType: offer.itemType,
+                token: offer.token,
+                identifier: offer.identifierOrCriteria,
+                amount: offer.endAmount,
+                recipient: payable(recipient)
+            }),
+            offerer: offerer,
+            conduitKey: conduitKey
+        });
+    }
+
+    function considerationToExecution(
+        ConsiderationItem memory consideration, 
+        address offerer, 
+        bytes32 conduitKey
+    ) internal pure returns (Execution memory execution) {
+        execution = Execution({
+            item: ReceivedItem({
+                itemType: consideration.itemType,
+                token: consideration.token,
+                identifier: consideration.identifierOrCriteria,
+                amount: consideration.endAmount,
+                recipient: consideration.recipient
+            }),
+            offerer: offerer,
+            conduitKey: conduitKey
+        });
     }
 
 }

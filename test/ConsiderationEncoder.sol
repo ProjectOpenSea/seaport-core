@@ -27,7 +27,7 @@ contract ConsiderationEncoder_Test is Test, ConsiderationEncoder {
         OfferItem[] memory offer = new OfferItem[](1);
         offer[0] = OfferItem({
             itemType: ItemType.ERC20,
-            token: 0x3333333333333333333333333333333333333333,
+            token:  Utils.mockAddress("ERC20"),
             identifierOrCriteria: 9,
             startAmount: 150,
             endAmount: 150
@@ -37,11 +37,11 @@ contract ConsiderationEncoder_Test is Test, ConsiderationEncoder {
         ConsiderationItem[] memory consideration = new ConsiderationItem[](1);
         consideration[0] = ConsiderationItem({
             itemType: ItemType.ERC721,
-            token: 0x1111111111111111111111111111111111111111,
+            token: Utils.mockAddress("ERC721"),
             identifierOrCriteria: 5,
             startAmount: 1,
             endAmount: 1,
-            recipient: payable(0x4444444444444444444444444444444444444444)
+            recipient: payable(Utils.mockAddress("recipient"))
         });
 
         // convert the consideration items into received items silently
@@ -51,23 +51,23 @@ contract ConsiderationEncoder_Test is Test, ConsiderationEncoder {
         ReceivedItem[] memory totalExecutions = new ReceivedItem[](2);
         totalExecutions[0] = ReceivedItem({
             itemType: ItemType.ERC721,
-            token: 0x1111111111111111111111111111111111111111,
+            token: Utils.mockAddress("ERC721"),
             identifier: 5,
             amount: 1,
-            recipient: payable(0x2222222222222222222222222222222222222222)
+            recipient: payable(Utils.mockAddress("recipient"))
         });
         totalExecutions[1] = ReceivedItem({
             itemType: ItemType.ERC20,
-            token: address(0x3333333333333333333333333333333333333333),
+            token: Utils.mockAddress("ERC20"),
             identifier: 9,
             amount: 150,
-            recipient: payable(0x4444444444444444444444444444444444444444)
+            recipient: payable(Utils.mockAddress("recipient"))
         });
 
         // create the order parameters
         OrderParameters memory orderParameters = OrderParameters({
-            offerer: address(0x6666666666666666666666666666666666666666),
-            zone: address(0x7777777777777777777777777777777777777777),
+            offerer: Utils.mockAddress("offerer"),
+            zone: Utils.mockAddress("zone"),
             offer: offer,
             consideration: consideration,
             orderType: OrderType.FULL_RESTRICTED,
