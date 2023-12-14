@@ -1,10 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
-// Adding a stub contract to satisfy foundry expecting there
-// to be a contract in this file when using deploy scripts
-contract ConsiderationConstants {}
-
 uint256 constant Rental_validateOrder_selector = 0x827b45fa;
 
 uint256 constant Rental_ZoneParameters_orderHash_offset = 0x00;

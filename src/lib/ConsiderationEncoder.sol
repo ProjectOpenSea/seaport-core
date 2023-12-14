@@ -71,8 +71,8 @@ import {
     Rental_ZoneParameters_endTime_offset,
     Rental_ZoneParameters_zoneHash_offset,
     Rental_ZoneParameters_base_tail_offset
-} from "src/lib/rental/ConsiderationConstants.sol";
-import {StructPointers} from "src/lib/rental/ConsiderationStructs.sol";
+} from "./rental/ConsiderationConstants.sol";
+import {StructPointers} from "./rental/ConsiderationStructs.sol";
 
 import {BasicOrderParameters, OrderParameters, ReceivedItem} from "seaport-types/src/lib/ConsiderationStructs.sol";
 
