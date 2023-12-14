@@ -342,7 +342,7 @@ contract ConsiderationEncoder {
      *              calldata.
      * @return size The size of the bytes array.
      */
-     function _encodeValidateOrder(
+    function _encodeValidateOrder(
         bytes32 orderHash,
         ReceivedItem[] memory totalExecutions,
         OrderParameters memory orderParameters,
