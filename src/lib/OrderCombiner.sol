@@ -617,7 +617,16 @@ contract OrderCombiner is OrderFulfiller, FulfillmentApplier {
         return (availableOrders, executions);
     }
 
-    // discovers the order index and item index of any offer items that are unspent
+    /**
+     * @dev Internal function to discover the amount of offer items that have
+     *      currently not been spent. Used to help determine the size of the 
+     *      total executions array
+     *
+     * @param advancedOrders The orders to check executions for.
+     *
+     * @return totalItems Total number of offer items in the advanced order
+     *                    that have not yet been spent.
+     */
     function _discoverUnspentOfferItems(
         AdvancedOrder[] memory advancedOrders
     ) internal pure returns (uint256 totalItems) {
@@ -860,7 +869,7 @@ contract OrderCombiner is OrderFulfiller, FulfillmentApplier {
                 // Ensure the order in question is being fulfilled.
                 if (availableOrders[i]) {
                     // Check restricted orders and contract orders.
-                    _rental_assertRestrictedAdvancedOrderValidity(advancedOrders[i], totalExecutionItems, orderHashes, orderHashes[i]);
+                    _assertRestrictedAdvancedOrderValidity(advancedOrders[i], totalExecutionItems, orderHashes, orderHashes[i]);
                 }
 
                 // Skip overflow checks as for loop is indexed starting at zero.

@@ -117,7 +117,7 @@ contract OrderFulfiller is BasicOrderFulfiller, CriteriaResolution, AmountDerive
         orderHashes[0] = orderHash;
 
         // Ensure restricted orders have a valid submitter or pass a zone check.
-        _rental_assertRestrictedAdvancedOrderValidity(advancedOrders[0], totalExecutions, orderHashes, orderHash);
+        _assertRestrictedAdvancedOrderValidity(advancedOrders[0], totalExecutions, orderHashes, orderHash);
 
         // Emit an event signifying that the order has been fulfilled.
         _emitOrderFulfilledEvent(

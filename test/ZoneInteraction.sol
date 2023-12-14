@@ -114,7 +114,7 @@ contract ZoneInteraction_Test is Test, ZoneInteraction {
         orderHashes[0] = orderHash;
  
         // make a call to the zone
-        _rental_assertRestrictedAdvancedOrderValidity(
+        _assertRestrictedAdvancedOrderValidity(
             advancedOrder,
             totalExecutions,
             orderHashes,

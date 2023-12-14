@@ -86,7 +86,7 @@ contract ConsiderationEncoder_Test is Test, ConsiderationEncoder {
         bytes32[] memory orderHashes = new bytes32[](1);
         orderHashes[0] = orderHash;
 
-        _rental_encodeValidateOrder(
+        _encodeValidateOrder(
             orderHash,
             totalExecutions,
             orderParameters,

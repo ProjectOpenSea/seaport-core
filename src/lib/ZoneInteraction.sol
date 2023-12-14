@@ -74,61 +74,13 @@ contract ZoneInteraction is ConsiderationEncoder, ZoneInteractionErrors, LowLeve
      *      correct magic value returned. Contract orders must successfully call
      *      `ratifyOrder` with the correct magic value returned.
      *
-     * @param advancedOrder The advanced order in question.
-     * @param orderHashes   The order hashes of each order included as part of
-     *                      the current fulfillment.
-     * @param orderHash     The hash of the order.
+     * @param advancedOrder   The advanced order in question.
+     * @param totalExecutions The total transfers in the current fulfillment
+     * @param orderHashes     The order hashes of each order included as part of
+     *                        the current fulfillment.
+     * @param orderHash       The hash of the order.
      */
     function _assertRestrictedAdvancedOrderValidity(
-        AdvancedOrder memory advancedOrder,
-        bytes32[] memory orderHashes,
-        bytes32 orderHash
-    ) internal {
-        // Declare variables that will be assigned based on the order type.
-        address target;
-        uint256 errorSelector;
-        MemoryPointer callData;
-        uint256 size;
-
-        // Retrieve the parameters of the order in question.
-        OrderParameters memory parameters = advancedOrder.parameters;
-
-        // OrderType 2-3 require zone to be caller or approve via validateOrder.
-        if (_isRestrictedAndCallerNotZone(parameters.orderType, parameters.zone)) {
-            // Encode the `validateOrder` call in memory.
-            (callData, size) = _encodeValidateOrder(orderHash, parameters, advancedOrder.extraData, orderHashes);
-
-            // Set the target to the zone.
-            target = (parameters.toMemoryPointer().offset(OrderParameters_zone_offset).readAddress());
-
-            // Set the restricted-order-specific error selector.
-            errorSelector = InvalidRestrictedOrder_error_selector;
-        } else if (parameters.orderType == OrderType.CONTRACT) {
-            // Set the target to the offerer (note the offerer has no offset).
-            target = parameters.toMemoryPointer().readAddress();
-
-            // Shift the target 96 bits to the left.
-            uint256 shiftedOfferer;
-            assembly {
-                shiftedOfferer := shl(ContractOrder_orderHash_offerer_shift, target)
-            }
-
-            // Encode the `ratifyOrder` call in memory.
-            (callData, size) =
-                _encodeRatifyOrder(orderHash, parameters, advancedOrder.extraData, orderHashes, shiftedOfferer);
-
-            // Set the contract-order-specific error selector.
-            errorSelector = InvalidContractOrder_error_selector;
-        } else {
-            return;
-        }
-
-
-        // Perform call and ensure a corresponding magic value was returned.
-        _callAndCheckStatus(target, orderHash, callData, size, errorSelector);
-    }
-
-    function _rental_assertRestrictedAdvancedOrderValidity(
         AdvancedOrder memory advancedOrder,
         ReceivedItem[] memory totalExecutions,
         bytes32[] memory orderHashes,
@@ -146,7 +98,7 @@ contract ZoneInteraction is ConsiderationEncoder, ZoneInteractionErrors, LowLeve
         // OrderType 2-3 require zone to be caller or approve via validateOrder.
         if (_isRestrictedAndCallerNotZone(parameters.orderType, parameters.zone)) {
             // Encode the `validateOrder` call in memory.
-            (callData, size) = _rental_encodeValidateOrder(orderHash, totalExecutions, parameters, advancedOrder.extraData, orderHashes);
+            (callData, size) = _encodeValidateOrder(orderHash, totalExecutions, parameters, advancedOrder.extraData, orderHashes);
 
             // Set the target to the zone.
             target = (parameters.toMemoryPointer().offset(OrderParameters_zone_offset).readAddress());
