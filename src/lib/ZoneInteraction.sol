@@ -3,7 +3,12 @@ pragma solidity ^0.8.17;
 
 import {OrderType} from "seaport-types/src/lib/ConsiderationEnums.sol";
 
-import {AdvancedOrder, BasicOrderParameters, OrderParameters} from "seaport-types/src/lib/ConsiderationStructs.sol";
+import {
+    AdvancedOrder, 
+    BasicOrderParameters, 
+    OrderParameters, 
+    ReceivedItem
+} from "seaport-types/src/lib/ConsiderationStructs.sol";
 
 import {ZoneInteractionErrors} from "seaport-types/src/interfaces/ZoneInteractionErrors.sol";
 
@@ -69,13 +74,15 @@ contract ZoneInteraction is ConsiderationEncoder, ZoneInteractionErrors, LowLeve
      *      correct magic value returned. Contract orders must successfully call
      *      `ratifyOrder` with the correct magic value returned.
      *
-     * @param advancedOrder The advanced order in question.
-     * @param orderHashes   The order hashes of each order included as part of
-     *                      the current fulfillment.
-     * @param orderHash     The hash of the order.
+     * @param advancedOrder   The advanced order in question.
+     * @param totalExecutions The total transfers in the current fulfillment
+     * @param orderHashes     The order hashes of each order included as part of
+     *                        the current fulfillment.
+     * @param orderHash       The hash of the order.
      */
     function _assertRestrictedAdvancedOrderValidity(
         AdvancedOrder memory advancedOrder,
+        ReceivedItem[] memory totalExecutions,
         bytes32[] memory orderHashes,
         bytes32 orderHash
     ) internal {
@@ -91,7 +98,7 @@ contract ZoneInteraction is ConsiderationEncoder, ZoneInteractionErrors, LowLeve
         // OrderType 2-3 require zone to be caller or approve via validateOrder.
         if (_isRestrictedAndCallerNotZone(parameters.orderType, parameters.zone)) {
             // Encode the `validateOrder` call in memory.
-            (callData, size) = _encodeValidateOrder(orderHash, parameters, advancedOrder.extraData, orderHashes);
+            (callData, size) = _encodeValidateOrder(orderHash, totalExecutions, parameters, advancedOrder.extraData, orderHashes);
 
             // Set the target to the zone.
             target = (parameters.toMemoryPointer().offset(OrderParameters_zone_offset).readAddress());

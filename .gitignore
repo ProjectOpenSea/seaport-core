@@ -1,0 +1,12 @@
+# Compiler files
+cache/
+out/
+
+# Dotenv file
+.env
+
+broadcast/
+
+node_modules/
+
+.vscode/
