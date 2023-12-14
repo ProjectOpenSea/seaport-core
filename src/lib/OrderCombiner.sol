@@ -783,14 +783,16 @@ contract OrderCombiner is OrderFulfiller, FulfillmentApplier {
                         // Note that the transfer will not be reflected in the
                         // executions array.
                         if (offerItem.startAmount != 0) {
-                            // add the received item to the array of total executions
-                            totalExecutionItems[totalProcessedExecutionItems++] = ReceivedItem(
-                                offerItem.itemType,
-                                offerItem.token,
-                                offerItem.identifierOrCriteria,
-                                offerItem.endAmount,
-                                payable(_recipient)
-                            );
+                            // add the received item to the array of total executions. Use this method to 
+                            // avoid creating any new memory regions
+                            totalExecutionItems[totalProcessedExecutionItems].itemType = offerItem.itemType;
+                            totalExecutionItems[totalProcessedExecutionItems].token = offerItem.token;
+                            totalExecutionItems[totalProcessedExecutionItems].identifier = offerItem.identifierOrCriteria;
+                            totalExecutionItems[totalProcessedExecutionItems].amount = offerItem.startAmount;
+                            totalExecutionItems[totalProcessedExecutionItems].recipient = payable(_recipient);
+
+                            // increment the number of processed execution items
+                            totalProcessedExecutionItems++;
 
                             // Replace the endAmount parameter with the recipient to
                             // make offerItem compatible with the ReceivedItem input
