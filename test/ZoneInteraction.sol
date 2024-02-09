@@ -18,7 +18,7 @@ import {ZoneParameters} from "src/lib/rental/ConsiderationStructs.sol";
 
 import {Zone} from "test/helpers/Zone.sol";
 import {Utils} from "test/helpers/Utils.sol";
-
+import "forge-std/console.sol";
 contract ZoneInteraction_Test is Test, ZoneInteraction {
     address mockERC20;
     address mockERC721;

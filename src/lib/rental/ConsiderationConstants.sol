@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
-uint256 constant Rental_validateOrder_selector = 0x827b45fa;
+uint256 constant Rental_validateOrder_selector = 0x0064e1d4;
 
 // Zone Parameters
 uint256 constant Rental_ZoneParameters_orderHash_offset = 0x00;
