@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.17;
 
-import { ItemType, OrderType } from "seaport-types/src/lib/ConsiderationEnums.sol";
+import { OrderType } from "seaport-types/src/lib/ConsiderationEnums.sol";
 
 import {
     ReceivedItem,
@@ -30,6 +30,7 @@ struct ZoneParameters {
     uint256 startTime;
     uint256 endTime;
     bytes32 zoneHash;
+    OrderType orderType;
 }
 
 library StructPointers {

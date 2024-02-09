@@ -59,6 +59,7 @@ import {
 
 import {
     Rental_validateOrder_selector,
+    Rental_OrderParameters_orderType_offset,
     Rental_ZoneParameters_orderHash_offset,
     Rental_ZoneParameters_fulfiller_offset,
     Rental_ZoneParameters_offerer_offset,
@@ -70,6 +71,7 @@ import {
     Rental_ZoneParameters_startTime_offset,
     Rental_ZoneParameters_endTime_offset,
     Rental_ZoneParameters_zoneHash_offset,
+    Rental_ZoneParameters_orderType_offset,
     Rental_ZoneParameters_base_tail_offset
 } from "./rental/ConsiderationConstants.sol";
 import {StructPointers} from "./rental/ConsiderationStructs.sol";
@@ -373,13 +375,14 @@ contract ConsiderationEncoder {
         // Get the memory pointer to the order parameters struct.
         MemoryPointer src = orderParameters.toMemoryPointer();
 
-        // Copy offerer, startTime, endTime and zoneHash to zoneParameters.
+        // Copy offerer, startTime, endTime, zoneHash, and orderType to zoneParameters.
         dstHead.offset(Rental_ZoneParameters_offerer_offset).write(src.readUint256());
         dstHead.offset(Rental_ZoneParameters_startTime_offset).write(
             src.offset(OrderParameters_startTime_offset).readUint256()
         );
         dstHead.offset(Rental_ZoneParameters_endTime_offset).write(src.offset(OrderParameters_endTime_offset).readUint256());
         dstHead.offset(Rental_ZoneParameters_zoneHash_offset).write(src.offset(OrderParameters_zoneHash_offset).readUint256());
+        dstHead.offset(Rental_ZoneParameters_orderType_offset).write(src.offset(Rental_OrderParameters_orderType_offset).readUint256());
 
         // Initialize tail offset, used to populate the offer array.
         uint256 tailOffset = Rental_ZoneParameters_base_tail_offset;
