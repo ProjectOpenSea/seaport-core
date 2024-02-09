@@ -618,6 +618,40 @@ contract OrderCombiner is OrderFulfiller, FulfillmentApplier {
     }
 
     /**
+     * @dev Internal function to discover the amount of offer items that have
+     *      currently not been spent. Used to help determine the size of the 
+     *      total executions array
+     *
+     * @param advancedOrders The orders to check executions for.
+     *
+     * @return totalItems Total number of offer items in the advanced order
+     *                    that have not yet been spent.
+     */
+    function _discoverUnspentOfferItems(
+        AdvancedOrder[] memory advancedOrders
+    ) internal pure returns (uint256 totalItems) {
+        // Iterate over advanced orders
+        for (uint256 i = 0; i < advancedOrders.length; ++i) {
+            // Retrieve the order 
+            AdvancedOrder memory order = advancedOrders[i];
+
+            // Read length of offer item array and place on the stack.
+            uint256 totalOfferItems = order.parameters.offer.length;
+
+            // Iterate over each offer item
+            for (uint256 j = 0; j < totalOfferItems; ++j) {
+                // get the offer item
+                OfferItem memory offerItem = order.parameters.offer[j];
+
+                // if the unspent amount is not zero, then mark the offer item
+                if (offerItem.startAmount != 0) {
+                    ++totalItems;
+                }
+            }
+        }
+    }
+
+    /**
      * @dev Internal function to perform a final check that each consideration
      *      item for an arbitrary number of fulfilled orders has been met and to
      *      trigger associated executions, transferring the respective items.
@@ -650,6 +684,13 @@ contract OrderCombiner is OrderFulfiller, FulfillmentApplier {
 
         // Initialize array for tracking available orders.
         bool[] memory availableOrders = new bool[](totalOrders);
+
+        // discover the number of unspent offer items, since these are not marked as `Execution` structs by seaport.
+        uint256 unspentItemsLength = _discoverUnspentOfferItems(advancedOrders);
+
+        // an array which will hold all the execution items made by seaport, including any unspent offer items
+        // which are transferred to the recipient address
+        ReceivedItem[] memory totalExecutionItems = new ReceivedItem[](executions.length + unspentItemsLength);
 
         // Initialize an accumulator array. From this point forward, no new
         // memory regions can be safely allocated until the accumulator is no
@@ -684,6 +725,9 @@ contract OrderCombiner is OrderFulfiller, FulfillmentApplier {
                     }
                 }
 
+                // add the received item to the total received items array
+                totalExecutionItems[i] = item;
+
                 // Transfer the item specified by the execution.
                 _transfer(item, execution.offerer, execution.conduitKey, accumulator);
 
@@ -694,8 +738,16 @@ contract OrderCombiner is OrderFulfiller, FulfillmentApplier {
             }
         }
 
+        // place recipient back on the stack to avoid stack too deep
+        address _recipient = recipient;
+
         // Skip overflow checks as all for loops are indexed starting at zero.
         unchecked {
+
+            // a counter for all the unspent items that have been processed and added to the `totalExecutionItems` array. 
+            // It is initialized to `executions.length` because each execution will be added to the received items array first.
+            uint256 totalProcessedExecutionItems = executions.length;
+
             // Iterate over each order.
             for (uint256 i = 0; i < totalOrders; ++i) {
                 // Retrieve the order in question.
@@ -731,11 +783,22 @@ contract OrderCombiner is OrderFulfiller, FulfillmentApplier {
                         // Note that the transfer will not be reflected in the
                         // executions array.
                         if (offerItem.startAmount != 0) {
+                            // add the received item to the array of total executions. Use this method to 
+                            // avoid creating any new memory regions
+                            totalExecutionItems[totalProcessedExecutionItems].itemType = offerItem.itemType;
+                            totalExecutionItems[totalProcessedExecutionItems].token = offerItem.token;
+                            totalExecutionItems[totalProcessedExecutionItems].identifier = offerItem.identifierOrCriteria;
+                            totalExecutionItems[totalProcessedExecutionItems].amount = offerItem.startAmount;
+                            totalExecutionItems[totalProcessedExecutionItems].recipient = payable(_recipient);
+
+                            // increment the number of processed execution items
+                            totalProcessedExecutionItems++;
+
                             // Replace the endAmount parameter with the recipient to
                             // make offerItem compatible with the ReceivedItem input
                             // to _transfer and cache the original endAmount so it
                             // can be restored after the transfer.
-                            uint256 originalEndAmount = _replaceEndAmountWithRecipient(offerItem, recipient);
+                            uint256 originalEndAmount = _replaceEndAmountWithRecipient(offerItem, _recipient);
 
                             // Transfer excess offer item amount to recipient.
                             _toOfferItemInput(_transfer)(
@@ -808,7 +871,7 @@ contract OrderCombiner is OrderFulfiller, FulfillmentApplier {
                 // Ensure the order in question is being fulfilled.
                 if (availableOrders[i]) {
                     // Check restricted orders and contract orders.
-                    _assertRestrictedAdvancedOrderValidity(advancedOrders[i], orderHashes, orderHashes[i]);
+                    _assertRestrictedAdvancedOrderValidity(advancedOrders[i], totalExecutionItems, orderHashes, orderHashes[i]);
                 }
 
                 // Skip overflow checks as for loop is indexed starting at zero.
