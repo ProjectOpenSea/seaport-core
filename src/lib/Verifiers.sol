@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.17;
+pragma solidity ^0.8.24;
 
-import {OrderStatus} from "seaport-types/src/lib/ConsiderationStructs.sol";
+import { OrderStatus } from "seaport-types/src/lib/ConsiderationStructs.sol";
 
-import {Assertions} from "./Assertions.sol";
+import { Assertions } from "./Assertions.sol";
 
-import {SignatureVerification} from "./SignatureVerification.sol";
+import { SignatureVerification } from "./SignatureVerification.sol";
 
 import {
     _revertInvalidTime,
@@ -42,7 +42,7 @@ contract Verifiers is Assertions, SignatureVerification {
      *                          that may optionally be used to transfer approved
      *                          ERC20/721/1155 tokens.
      */
-    constructor(address conduitController) Assertions(conduitController) {}
+    constructor(address conduitController) Assertions(conduitController) { }
 
     /**
      * @dev Internal view function to ensure that the current time falls within
@@ -55,10 +55,17 @@ contract Verifiers is Assertions, SignatureVerification {
      *
      * @return valid A boolean indicating whether the order is active.
      */
-    function _verifyTime(uint256 startTime, uint256 endTime, bool revertOnInvalid) internal view returns (bool valid) {
+    function _verifyTime(
+        uint256 startTime,
+        uint256 endTime,
+        bool revertOnInvalid
+    ) internal view returns (bool valid) {
         // Mark as valid if order has started and has not already ended.
         assembly {
-            valid := and(iszero(gt(startTime, timestamp())), gt(endTime, timestamp()))
+            valid := and(
+                iszero(gt(startTime, timestamp())),
+                gt(endTime, timestamp())
+            )
         }
 
         // Only revert on invalid if revertOnInvalid has been supplied as true.
@@ -80,7 +87,11 @@ contract Verifiers is Assertions, SignatureVerification {
      * @param signature A signature from the offerer indicating that the order
      *                  has been approved.
      */
-    function _verifySignature(address offerer, bytes32 orderHash, bytes memory signature) internal view {
+    function _verifySignature(
+        address offerer,
+        bytes32 orderHash,
+        bytes memory signature
+    ) internal view {
         // Determine whether the offerer is the caller.
         bool offererIsCaller;
         assembly {
@@ -96,7 +107,10 @@ contract Verifiers is Assertions, SignatureVerification {
         bytes32 domainSeparator = _domainSeparator();
 
         // Derive original EIP-712 digest using domain separator and order hash.
-        bytes32 originalDigest = _deriveEIP712Digest(domainSeparator, orderHash);
+        bytes32 originalDigest = _deriveEIP712Digest(
+            domainSeparator,
+            orderHash
+        );
 
         // Read the length of the signature from memory and place on the stack.
         uint256 originalSignatureLength = signature.length;
@@ -113,7 +127,9 @@ contract Verifiers is Assertions, SignatureVerification {
         }
 
         // Ensure that the signature for the digest is valid for the offerer.
-        _assertValidSignature(offerer, digest, originalDigest, originalSignatureLength, signature);
+        _assertValidSignature(
+            offerer, digest, originalDigest, originalSignatureLength, signature
+        );
     }
 
     /**
@@ -123,15 +139,28 @@ contract Verifiers is Assertions, SignatureVerification {
      *
      * @return validLength True if bulk order size is valid, false otherwise.
      */
-    function _isValidBulkOrderSize(uint256 signatureLength) internal pure returns (bool validLength) {
+    function _isValidBulkOrderSize(uint256 signatureLength)
+        internal
+        pure
+        returns (bool validLength)
+    {
         // Utilize assembly to validate the length; the equivalent logic is
         // (64 + x) + 3 + 32y where (0 <= x <= 1) and (1 <= y <= 24).
         assembly {
             validLength :=
                 and(
-                    lt(sub(signatureLength, BulkOrderProof_minSize), BulkOrderProof_rangeSize),
                     lt(
-                        and(add(signatureLength, BulkOrderProof_lengthAdjustmentBeforeMask), ThirtyOneBytes),
+                        sub(signatureLength, BulkOrderProof_minSize),
+                        BulkOrderProof_rangeSize
+                    ),
+                    lt(
+                        and(
+                            add(
+                                signatureLength,
+                                BulkOrderProof_lengthAdjustmentBeforeMask
+                            ),
+                            ThirtyOneBytes
+                        ),
                         BulkOrderProof_lengthRangeAfterMask
                     )
                 )
@@ -148,11 +177,10 @@ contract Verifiers is Assertions, SignatureVerification {
      *
      * @return bulkOrderHash The bulk order hash.
      */
-    function _computeBulkOrderProof(bytes memory proofAndSignature, bytes32 leaf)
-        internal
-        pure
-        returns (bytes32 bulkOrderHash)
-    {
+    function _computeBulkOrderProof(
+        bytes memory proofAndSignature,
+        bytes32 leaf
+    ) internal pure returns (bytes32 bulkOrderHash) {
         // Declare arguments for the root hash and the height of the proof.
         bytes32 root;
         uint256 height;

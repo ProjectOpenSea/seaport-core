@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.17;
+pragma solidity ^0.8.24;
 
-import {AmountDerivationErrors} from "seaport-types/src/interfaces/AmountDerivationErrors.sol";
+import { AmountDerivationErrors } from
+    "seaport-types/src/interfaces/AmountDerivationErrors.sol";
 
 import {
     Error_selector_offset,
@@ -64,7 +65,8 @@ contract AmountDeriver is AmountDerivationErrors {
             }
 
             // Aggregate new amounts weighted by time with rounding factor.
-            uint256 totalBeforeDivision = ((startAmount * remaining) + (endAmount * elapsed));
+            uint256 totalBeforeDivision =
+                ((startAmount * remaining) + (endAmount * elapsed));
 
             // Use assembly to combine operations and skip divide-by-zero check.
             assembly {
@@ -74,11 +76,14 @@ contract AmountDeriver is AmountDerivationErrors {
                 amount :=
                     mul(
                         iszero(iszero(totalBeforeDivision)),
-                        // Subtract 1 from the numerator and add 1 to the result if
-                        // roundUp is true to get the proper rounding direction.
+                        // Subtract 1 from the numerator and add 1 to the result
+                        // if roundUp is true to get proper rounding direction.
                         // Division is performed with no zero check as duration
                         // cannot be zero as long as startTime < endTime.
-                        add(div(sub(totalBeforeDivision, roundUp), duration), roundUp)
+                        add(
+                            div(sub(totalBeforeDivision, roundUp), duration),
+                            roundUp
+                        )
                     )
             }
 
@@ -132,7 +137,7 @@ contract AmountDeriver is AmountDerivationErrors {
         // Multiply the numerator by the value and ensure no overflow occurs.
         uint256 valueTimesNumerator = value * numerator;
 
-        // Divide and check for remainder. Note that denominator cannot be zero.
+        // Divide by the denominator (note that denominator cannot be zero).
         assembly {
             // Perform division without zero check.
             newValue := div(valueTimesNumerator, denominator)

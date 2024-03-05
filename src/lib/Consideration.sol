@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.17;
+pragma solidity ^0.8.24;
 
-import {ConsiderationInterface} from "seaport-types/src/interfaces/ConsiderationInterface.sol";
+import { ConsiderationInterface } from
+    "seaport-types/src/interfaces/ConsiderationInterface.sol";
 
 import {
     AdvancedOrder,
@@ -14,9 +15,12 @@ import {
     OrderComponents
 } from "seaport-types/src/lib/ConsiderationStructs.sol";
 
-import {OrderCombiner} from "./OrderCombiner.sol";
+import { OrderCombiner } from "./OrderCombiner.sol";
 
-import {CalldataStart, CalldataPointer} from "seaport-types/src/helpers/PointerLibraries.sol";
+import {
+    CalldataStart,
+    CalldataPointer
+} from "seaport-types/src/helpers/PointerLibraries.sol";
 
 import {
     Offset_fulfillAdvancedOrder_criteriaResolvers,
@@ -37,7 +41,8 @@ import {
  * @custom:coauthor d1ll0n (d1ll0n.eth)
  * @custom:coauthor transmissions11 (t11s.eth)
  * @custom:coauthor James Wenzel (emo.eth)
- * @custom:version 1.5
+ * @custom:coauthor Daniel Viau (snotrocket.eth)
+ * @custom:version 1.6
  * @notice Consideration is a generalized native token/ERC20/ERC721/ERC1155
  *         marketplace that provides lightweight methods for common routes as
  *         well as more flexible methods for composing advanced orders or groups
@@ -55,7 +60,7 @@ contract Consideration is ConsiderationInterface, OrderCombiner {
      *                          that may optionally be used to transfer approved
      *                          ERC20/721/1155 tokens.
      */
-    constructor(address conduitController) OrderCombiner(conduitController) {}
+    constructor(address conduitController) OrderCombiner(conduitController) { }
 
     /**
      * @notice Accept native token transfers during execution that may then be
@@ -83,24 +88,30 @@ contract Consideration is ConsiderationInterface, OrderCombiner {
      *         to the documentation for a more comprehensive summary of how to
      *         utilize this method and what orders are compatible with it.
      *
-     * @param parameters Additional information on the fulfilled order. Note
-     *                   that the offerer and the fulfiller must first approve
-     *                   this contract (or their chosen conduit if indicated)
-     *                   before any tokens can be transferred. Also note that
-     *                   contract recipients of ERC1155 consideration items must
-     *                   implement `onERC1155Received` to receive those items.
+     * @custom:param parameters Additional information on the fulfilled order.
+     *                          Note that the offerer and the fulfiller must
+     *                          first approve this contract (or their chosen
+     *                          conduit if indicated) before any tokens can be
+     *                          transferred. Also note that contract recipients
+     *                          of ERC1155 consideration items must implement
+     *                          `onERC1155Received` to receive those items.
      *
      * @return fulfilled A boolean indicating whether the order has been
      *                   successfully fulfilled.
      */
-    function fulfillBasicOrder(BasicOrderParameters calldata parameters)
+    function fulfillBasicOrder(
+        /**
+         * @custom:name parameters
+         */
+        BasicOrderParameters calldata
+    )
         external
         payable
         override
         returns (bool fulfilled)
     {
         // Validate and fulfill the basic order.
-        fulfilled = _validateAndFulfillBasicOrder(parameters);
+        fulfilled = _validateAndFulfillBasicOrder();
     }
 
     /**
@@ -121,24 +132,25 @@ contract Consideration is ConsiderationInterface, OrderCombiner {
      *         the zero bytes in the function selector (0x00000000) which also
      *         results in earlier function dispatch.
      *
-     * @param parameters Additional information on the fulfilled order. Note
-     *                   that the offerer and the fulfiller must first approve
-     *                   this contract (or their chosen conduit if indicated)
-     *                   before any tokens can be transferred. Also note that
-     *                   contract recipients of ERC1155 consideration items must
-     *                   implement `onERC1155Received` to receive those items.
+     * @custom:param parameters Additional information on the fulfilled order.
+     *                          Note that the offerer and the fulfiller must
+     *                          first approve this contract (or their chosen
+     *                          conduit if indicated) before any tokens can be
+     *                          transferred. Also note that contract recipients
+     *                          of ERC1155 consideration items must implement
+     *                          `onERC1155Received` to receive those items.
      *
      * @return fulfilled A boolean indicating whether the order has been
      *                   successfully fulfilled.
      */
-    function fulfillBasicOrder_efficient_6GL6yc(BasicOrderParameters calldata parameters)
-        external
-        payable
-        override
-        returns (bool fulfilled)
-    {
+    function fulfillBasicOrder_efficient_6GL6yc(
+        /**
+         * @custom:name parameters
+         */
+        BasicOrderParameters calldata
+    ) external payable override returns (bool fulfilled) {
         // Validate and fulfill the basic order.
-        fulfilled = _validateAndFulfillBasicOrder(parameters);
+        fulfilled = _validateAndFulfillBasicOrder();
     }
 
     /**
@@ -172,7 +184,9 @@ contract Consideration is ConsiderationInterface, OrderCombiner {
     ) external payable override returns (bool fulfilled) {
         // Convert order to "advanced" order, then validate and fulfill it.
         fulfilled = _validateAndFulfillAdvancedOrder(
-            _toAdvancedOrderReturnType(_decodeOrderAsAdvancedOrder)(CalldataStart.pptr()),
+            _toAdvancedOrderReturnType(_decodeOrderAsAdvancedOrder)(
+                CalldataStart.pptr()
+            ),
             new CriteriaResolver[](0), // No criteria resolvers supplied.
             fulfillerConduitKey,
             msg.sender
@@ -236,9 +250,13 @@ contract Consideration is ConsiderationInterface, OrderCombiner {
     ) external payable override returns (bool fulfilled) {
         // Validate and fulfill the order.
         fulfilled = _validateAndFulfillAdvancedOrder(
-            _toAdvancedOrderReturnType(_decodeAdvancedOrder)(CalldataStart.pptr()),
+            _toAdvancedOrderReturnType(_decodeAdvancedOrder)(
+                CalldataStart.pptr()
+            ),
             _toCriteriaResolversReturnType(_decodeCriteriaResolvers)(
-                CalldataStart.pptr(Offset_fulfillAdvancedOrder_criteriaResolvers)
+                CalldataStart.pptrOffset(
+                    Offset_fulfillAdvancedOrder_criteriaResolvers
+                )
             ),
             fulfillerConduitKey,
             _substituteCallerForEmptyRecipient(recipient)
@@ -313,16 +331,34 @@ contract Consideration is ConsiderationInterface, OrderCombiner {
         FulfillmentComponent[][] calldata,
         bytes32 fulfillerConduitKey,
         uint256 maximumFulfilled
-    ) external payable override returns (bool[] memory, /* availableOrders */ Execution[] memory /* executions */ ) {
+    )
+        external
+        payable
+        override
+        returns (
+            bool[] memory, /* availableOrders */
+            Execution[] memory /* executions */
+        )
+    {
         // Convert orders to "advanced" orders and fulfill all available orders.
         return _fulfillAvailableAdvancedOrders(
-            _toAdvancedOrdersReturnType(_decodeOrdersAsAdvancedOrders)(CalldataStart.pptr()), // Convert to advanced orders.
+            _toAdvancedOrdersReturnType(_decodeOrdersAsAdvancedOrders)(
+                CalldataStart.pptr()
+            ), // Convert to advanced orders.
             new CriteriaResolver[](0), // No criteria resolvers supplied.
-            _toNestedFulfillmentComponentsReturnType(_decodeNestedFulfillmentComponents)(
-                CalldataStart.pptr(Offset_fulfillAvailableOrders_offerFulfillments)
+            _toNestedFulfillmentComponentsReturnType(
+                _decodeNestedFulfillmentComponents
+            )(
+                CalldataStart.pptrOffset(
+                    Offset_fulfillAvailableOrders_offerFulfillments
+                )
             ),
-            _toNestedFulfillmentComponentsReturnType(_decodeNestedFulfillmentComponents)(
-                CalldataStart.pptr(Offset_fulfillAvailableOrders_considerationFulfillments)
+            _toNestedFulfillmentComponentsReturnType(
+                _decodeNestedFulfillmentComponents
+            )(
+                CalldataStart.pptrOffset(
+                    Offset_fulfillAvailableOrders_considerationFulfillments
+                )
             ),
             fulfillerConduitKey,
             msg.sender,
@@ -428,18 +464,38 @@ contract Consideration is ConsiderationInterface, OrderCombiner {
         bytes32 fulfillerConduitKey,
         address recipient,
         uint256 maximumFulfilled
-    ) external payable override returns (bool[] memory, /* availableOrders */ Execution[] memory /* executions */ ) {
+    )
+        external
+        payable
+        override
+        returns (
+            bool[] memory, /* availableOrders */
+            Execution[] memory /* executions */
+        )
+    {
         // Fulfill all available orders.
         return _fulfillAvailableAdvancedOrders(
-            _toAdvancedOrdersReturnType(_decodeAdvancedOrders)(CalldataStart.pptr()),
+            _toAdvancedOrdersReturnType(_decodeAdvancedOrders)(
+                CalldataStart.pptr()
+            ),
             _toCriteriaResolversReturnType(_decodeCriteriaResolvers)(
-                CalldataStart.pptr(Offset_fulfillAvailableAdvancedOrders_criteriaResolvers)
+                CalldataStart.pptrOffset(
+                    Offset_fulfillAvailableAdvancedOrders_criteriaResolvers
+                )
             ),
-            _toNestedFulfillmentComponentsReturnType(_decodeNestedFulfillmentComponents)(
-                CalldataStart.pptr(Offset_fulfillAvailableAdvancedOrders_offerFulfillments)
+            _toNestedFulfillmentComponentsReturnType(
+                _decodeNestedFulfillmentComponents
+            )(
+                CalldataStart.pptrOffset(
+                    Offset_fulfillAvailableAdvancedOrders_offerFulfillments
+                )
             ),
-            _toNestedFulfillmentComponentsReturnType(_decodeNestedFulfillmentComponents)(
-                CalldataStart.pptr(Offset_fulfillAvailableAdvancedOrders_cnsdrationFlflmnts)
+            _toNestedFulfillmentComponentsReturnType(
+                _decodeNestedFulfillmentComponents
+            )(
+                CalldataStart.pptrOffset(
+                    Offset_fulfillAvailableAdvancedOrders_cnsdrationFlflmnts
+                )
             ),
             fulfillerConduitKey,
             _substituteCallerForEmptyRecipient(recipient),
@@ -485,12 +541,21 @@ contract Consideration is ConsiderationInterface, OrderCombiner {
          * @custom:name fulfillments
          */
         Fulfillment[] calldata
-    ) external payable override returns (Execution[] memory /* executions */ ) {
+    )
+        external
+        payable
+        override
+        returns (Execution[] memory /* executions */ )
+    {
         // Convert to advanced, validate, and match orders using fulfillments.
         return _matchAdvancedOrders(
-            _toAdvancedOrdersReturnType(_decodeOrdersAsAdvancedOrders)(CalldataStart.pptr()),
+            _toAdvancedOrdersReturnType(_decodeOrdersAsAdvancedOrders)(
+                CalldataStart.pptr()
+            ),
             new CriteriaResolver[](0), // No criteria resolvers supplied.
-            _toFulfillmentsReturnType(_decodeFulfillments)(CalldataStart.pptr(Offset_matchOrders_fulfillments)),
+            _toFulfillmentsReturnType(_decodeFulfillments)(
+                CalldataStart.pptrOffset(Offset_matchOrders_fulfillments)
+            ),
             msg.sender
         );
     }
@@ -561,14 +626,27 @@ contract Consideration is ConsiderationInterface, OrderCombiner {
          */
         Fulfillment[] calldata,
         address recipient
-    ) external payable override returns (Execution[] memory /* executions */ ) {
+    )
+        external
+        payable
+        override
+        returns (Execution[] memory /* executions */ )
+    {
         // Validate and match the advanced orders using supplied fulfillments.
         return _matchAdvancedOrders(
-            _toAdvancedOrdersReturnType(_decodeAdvancedOrders)(CalldataStart.pptr()),
-            _toCriteriaResolversReturnType(_decodeCriteriaResolvers)(
-                CalldataStart.pptr(Offset_matchAdvancedOrders_criteriaResolvers)
+            _toAdvancedOrdersReturnType(_decodeAdvancedOrders)(
+                CalldataStart.pptr()
             ),
-            _toFulfillmentsReturnType(_decodeFulfillments)(CalldataStart.pptr(Offset_matchAdvancedOrders_fulfillments)),
+            _toCriteriaResolversReturnType(_decodeCriteriaResolvers)(
+                CalldataStart.pptrOffset(
+                    Offset_matchAdvancedOrders_criteriaResolvers
+                )
+            ),
+            _toFulfillmentsReturnType(_decodeFulfillments)(
+                CalldataStart.pptrOffset(
+                    Offset_matchAdvancedOrders_fulfillments
+                )
+            ),
             _substituteCallerForEmptyRecipient(recipient)
         );
     }
@@ -584,7 +662,11 @@ contract Consideration is ConsiderationInterface, OrderCombiner {
      * @return cancelled A boolean indicating whether the supplied orders have
      *                   been successfully cancelled.
      */
-    function cancel(OrderComponents[] calldata orders) external override returns (bool cancelled) {
+    function cancel(OrderComponents[] calldata orders)
+        external
+        override
+        returns (bool cancelled)
+    {
         // Cancel the orders.
         cancelled = _cancel(orders);
     }
@@ -610,7 +692,8 @@ contract Consideration is ConsiderationInterface, OrderCombiner {
          */
         Order[] calldata
     ) external override returns (bool /* validated */ ) {
-        return _validate(_toOrdersReturnType(_decodeOrders)(CalldataStart.pptr()));
+        return
+            _validate(_toOrdersReturnType(_decodeOrders)(CalldataStart.pptr()));
     }
 
     /**
@@ -620,7 +703,11 @@ contract Consideration is ConsiderationInterface, OrderCombiner {
      *
      * @return newCounter The new counter.
      */
-    function incrementCounter() external override returns (uint256 newCounter) {
+    function incrementCounter()
+        external
+        override
+        returns (uint256 newCounter)
+    {
         // Increment current counter for the supplied offerer.  Note that the
         // counter is incremented by a large, quasi-random interval.
         newCounter = _incrementCounter();
@@ -643,7 +730,9 @@ contract Consideration is ConsiderationInterface, OrderCombiner {
 
         // Derive order hash by supplying order parameters along with counter.
         orderHash = _deriveOrderHash(
-            _toOrderParametersReturnType(_decodeOrderComponentsAsOrderParameters)(orderPointer),
+            _toOrderParametersReturnType(
+                _decodeOrderComponentsAsOrderParameters
+            )(orderPointer),
             // Read order counter
             orderPointer.offset(OrderParameters_counter_offset).readUint256()
         );
@@ -674,7 +763,12 @@ contract Consideration is ConsiderationInterface, OrderCombiner {
         external
         view
         override
-        returns (bool isValidated, bool isCancelled, uint256 totalFilled, uint256 totalSize)
+        returns (
+            bool isValidated,
+            bool isCancelled,
+            uint256 totalFilled,
+            uint256 totalSize
+        )
     {
         // Retrieve the order status using the order hash.
         return _getOrderStatus(orderHash);
@@ -687,7 +781,12 @@ contract Consideration is ConsiderationInterface, OrderCombiner {
      *
      * @return counter The current counter.
      */
-    function getCounter(address offerer) external view override returns (uint256 counter) {
+    function getCounter(address offerer)
+        external
+        view
+        override
+        returns (uint256 counter)
+    {
         // Return the counter for the supplied offerer.
         counter = _getCounter(offerer);
     }
@@ -703,7 +802,11 @@ contract Consideration is ConsiderationInterface, OrderCombiner {
         external
         view
         override
-        returns (string memory version, bytes32 domainSeparator, address conduitController)
+        returns (
+            string memory version,
+            bytes32 domainSeparator,
+            address conduitController
+        )
     {
         // Return the information for this contract.
         return _information();
@@ -718,7 +821,12 @@ contract Consideration is ConsiderationInterface, OrderCombiner {
      *
      * @return nonce The contract offerer nonce.
      */
-    function getContractOffererNonce(address contractOfferer) external view override returns (uint256 nonce) {
+    function getContractOffererNonce(address contractOfferer)
+        external
+        view
+        override
+        returns (uint256 nonce)
+    {
         nonce = _contractNonces[contractOfferer];
     }
 
@@ -727,7 +835,12 @@ contract Consideration is ConsiderationInterface, OrderCombiner {
      *
      * @return contractName The name of this contract.
      */
-    function name() external pure override returns (string memory /* contractName */ ) {
+    function name()
+        external
+        pure
+        override
+        returns (string memory /* contractName */ )
+    {
         // Return the name of the contract.
         return _name();
     }

@@ -1,7 +1,11 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.17;
+pragma solidity ^0.8.24;
 
-import {Side, ItemType, OrderType} from "seaport-types/src/lib/ConsiderationEnums.sol";
+import {
+    Side,
+    ItemType,
+    OrderType
+} from "seaport-types/src/lib/ConsiderationEnums.sol";
 
 import {
     AdvancedOrder,
@@ -15,16 +19,21 @@ import {
     ReceivedItem
 } from "seaport-types/src/lib/ConsiderationStructs.sol";
 
-import {OrderFulfiller} from "./OrderFulfiller.sol";
+import { OrderFulfiller } from "./OrderFulfiller.sol";
 
-import {FulfillmentApplier} from "./FulfillmentApplier.sol";
+import { FulfillmentApplier } from "./FulfillmentApplier.sol";
 
 import {
     _revertConsiderationNotMet,
-    _revertInsufficientNativeTokensSupplied,
     _revertInvalidNativeOfferItem,
     _revertNoSpecifiedOrdersAvailable
 } from "seaport-types/src/lib/ConsiderationErrors.sol";
+
+import {
+    Error_selector_offset,
+    InsufficientNativeTokensSupplied_error_selector,
+    InsufficientNativeTokensSupplied_error_length
+} from "seaport-types/src/lib/ConsiderationErrorConstants.sol"; 
 
 import {
     AccumulatorDisarmed,
@@ -39,6 +48,12 @@ import {
     ReceivedItem_recipient_offset,
     TwoWords
 } from "seaport-types/src/lib/ConsiderationConstants.sol";
+
+import {
+    MemoryPointer,
+    MemoryPointerLib,
+    ZeroSlotPtr
+} from "seaport-types/src/helpers/PointerLibraries.sol";
 
 /**
  * @title OrderCombiner
@@ -56,7 +71,7 @@ contract OrderCombiner is OrderFulfiller, FulfillmentApplier {
      *                          that may optionally be used to transfer approved
      *                          ERC20/721/1155 tokens.
      */
-    constructor(address conduitController) OrderFulfiller(conduitController) {}
+    constructor(address conduitController) OrderFulfiller(conduitController) { }
 
     /**
      * @notice Internal function to attempt to fill a group of orders, fully or
@@ -129,12 +144,23 @@ contract OrderCombiner is OrderFulfiller, FulfillmentApplier {
         bytes32 fulfillerConduitKey,
         address recipient,
         uint256 maximumFulfilled
-    ) internal returns (bool[] memory, /* availableOrders */ Execution[] memory /* executions */ ) {
+    )
+        internal
+        returns (
+            bool[] memory, /* availableOrders */
+            Execution[] memory /* executions */
+        )
+    {
+        // Create a `false` boolean variable to indicate that invalid orders
+        // should NOT revert. Does not use a constant to avoid function
+        // specialization in solc that would increase contract size.
+        bool revertOnInvalid = _runTimeConstantFalse();
         // Validate orders, apply amounts, & determine if they use conduits.
-        (bytes32[] memory orderHashes, bool containsNonOpen) = _validateOrdersAndPrepareToFulfill(
+        (bytes32[] memory orderHashes, bool containsNonOpen) =
+        _validateOrdersAndPrepareToFulfill(
             advancedOrders,
             criteriaResolvers,
-            false, // Signifies that invalid orders should NOT revert.
+            revertOnInvalid,
             maximumFulfilled,
             recipient
         );
@@ -212,11 +238,11 @@ contract OrderCombiner is OrderFulfiller, FulfillmentApplier {
              * 1000011100100000000110110 1 000001 fulfillAvailableAdvancedOrders
              *                           ^ 7th bit
              */
-            invalidNativeOfferItemErrorBuffer := and(NonMatchSelector_MagicMask, calldataload(0))
+            invalidNativeOfferItemErrorBuffer :=
+                and(NonMatchSelector_MagicMask, calldataload(0))
         }
 
-        // Declare variables for later use.
-        AdvancedOrder memory advancedOrder;
+        // Declare "terminal memory offset" variable for use in efficient loops.
         uint256 terminalMemoryOffset;
 
         unchecked {
@@ -232,60 +258,41 @@ contract OrderCombiner is OrderFulfiller, FulfillmentApplier {
 
         // Skip overflow checks as all for loops are indexed starting at zero.
         unchecked {
-            // Declare inner variables.
-            OfferItem[] memory offer;
-            ConsiderationItem[] memory consideration;
+            // Declare variable to track if an order is not a contract order.
+            bool isNonContract;
 
             // Iterate over each order.
             for (uint256 i = OneWord; i < terminalMemoryOffset; i += OneWord) {
-                // Retrieve order using assembly to bypass out-of-range check.
-                assembly {
-                    advancedOrder := mload(add(advancedOrders, i))
-                }
-
-                // Determine if max number orders have already been fulfilled.
-                if (maximumFulfilled == 0) {
-                    // Mark fill fraction as zero as the order will not be used.
-                    advancedOrder.numerator = 0;
-
-                    // Continue iterating through the remaining orders.
-                    continue;
-                }
+                // Retrieve order using pointer libraries to bypass out-of-range
+                // check & cast function to avoid additional memory allocation.
+                AdvancedOrder memory advancedOrder = (
+                    _getReadAdvancedOrderByOffset()(advancedOrders, i)
+                );
 
                 // Validate it, update status, and determine fraction to fill.
                 (bytes32 orderHash, uint256 numerator, uint256 denominator) =
-                    _validateOrderAndUpdateStatus(advancedOrder, revertOnInvalid);
+                _validateOrder(advancedOrder, revertOnInvalid);
+
+                advancedOrder.numerator = uint120(numerator);
 
                 // Do not track hash or adjust prices if order is not fulfilled.
                 if (numerator == 0) {
-                    // Mark fill fraction as zero if the order is not fulfilled.
-                    advancedOrder.numerator = 0;
-
                     // Continue iterating through the remaining orders.
                     continue;
                 }
+
+                advancedOrder.denominator = uint120(denominator);
 
                 // Otherwise, track the order hash in question.
                 assembly {
                     mstore(add(orderHashes, i), orderHash)
                 }
 
-                // Decrement the number of fulfilled orders.
-                // Skip underflow check as the condition before
-                // implies that maximumFulfilled > 0.
-                --maximumFulfilled;
-
                 // Place the start time for the order on the stack.
                 uint256 startTime = advancedOrder.parameters.startTime;
 
                 // Place the end time for the order on the stack.
                 uint256 endTime = advancedOrder.parameters.endTime;
-
-                // Retrieve array of offer items for the order in question.
-                offer = advancedOrder.parameters.offer;
-
-                // Read length of offer array and place on the stack.
-                uint256 totalOfferItems = offer.length;
 
                 {
                     // Determine the order type, used to check for eligibility
@@ -298,17 +305,21 @@ contract OrderCombiner is OrderFulfiller, FulfillmentApplier {
                     // types beyond the current set (0-4) and will need to be
                     // modified if more order types are added.
                     assembly {
-                        // Declare a variable indicating if the order is not a
-                        // contract order. Cache in scratch space to avoid stack
-                        // depth errors.
-                        let isNonContract := lt(orderType, 4)
-                        mstore(0, isNonContract)
+                        // Assign the variable indicating if the order is not a
+                        // contract order.
+                        isNonContract := lt(orderType, 4)
 
                         // Update the variable indicating if the order is not an
                         // open order, remaining set if it has been set already.
                         containsNonOpen := or(containsNonOpen, gt(orderType, 1))
                     }
                 }
+
+                // Retrieve array of offer items for the order in question.
+                OfferItem[] memory offer = advancedOrder.parameters.offer;
+
+                // Read length of offer array and place on the stack.
+                uint256 totalOfferItems = offer.length;
 
                 // Iterate over each offer item on the order.
                 for (uint256 j = 0; j < totalOfferItems; ++j) {
@@ -320,11 +331,16 @@ contract OrderCombiner is OrderFulfiller, FulfillmentApplier {
                     // the error buffer to true.
                     assembly {
                         invalidNativeOfferItemErrorBuffer :=
-                            or(invalidNativeOfferItemErrorBuffer, lt(mload(offerItem), mload(0)))
+                            or(
+                                invalidNativeOfferItemErrorBuffer,
+                                lt(mload(offerItem), isNonContract)
+                            )
                     }
 
                     // Apply order fill fraction to offer item end amount.
-                    uint256 endAmount = _getFraction(numerator, denominator, offerItem.endAmount);
+                    uint256 endAmount = _getFraction(
+                        numerator, denominator, offerItem.endAmount
+                    );
 
                     // Reuse same fraction if start and end amounts are equal.
                     if (offerItem.startAmount == offerItem.endAmount) {
@@ -332,7 +348,9 @@ contract OrderCombiner is OrderFulfiller, FulfillmentApplier {
                         offerItem.startAmount = endAmount;
                     } else {
                         // Apply order fill fraction to offer item start amount.
-                        offerItem.startAmount = _getFraction(numerator, denominator, offerItem.startAmount);
+                        offerItem.startAmount = _getFraction(
+                            numerator, denominator, offerItem.startAmount
+                        );
                     }
 
                     // Adjust offer amount using current time; round down.
@@ -341,7 +359,7 @@ contract OrderCombiner is OrderFulfiller, FulfillmentApplier {
                         endAmount,
                         startTime,
                         endTime,
-                        false // round down
+                        _runTimeConstantFalse() // round down
                     );
 
                     // Update amounts in memory to match the current amount.
@@ -351,7 +369,9 @@ contract OrderCombiner is OrderFulfiller, FulfillmentApplier {
                 }
 
                 // Retrieve array of consideration items for order in question.
-                consideration = (advancedOrder.parameters.consideration);
+                ConsiderationItem[] memory consideration = (
+                    advancedOrder.parameters.consideration
+                );
 
                 // Read length of consideration array and place on the stack.
                 uint256 totalConsiderationItems = consideration.length;
@@ -359,19 +379,28 @@ contract OrderCombiner is OrderFulfiller, FulfillmentApplier {
                 // Iterate over each consideration item on the order.
                 for (uint256 j = 0; j < totalConsiderationItems; ++j) {
                     // Retrieve the consideration item.
-                    ConsiderationItem memory considerationItem = (consideration[j]);
+                    ConsiderationItem memory considerationItem =
+                        (consideration[j]);
 
                     // Apply fraction to consideration item end amount.
-                    uint256 endAmount = _getFraction(numerator, denominator, considerationItem.endAmount);
+                    uint256 endAmount = _getFraction(
+                        numerator, denominator, considerationItem.endAmount
+                    );
 
                     // Reuse same fraction if start and end amounts are equal.
-                    if (considerationItem.startAmount == considerationItem.endAmount) {
+                    if (
+                        considerationItem.startAmount
+                            == considerationItem.endAmount
+                    ) {
                         // Apply derived amount to both start and end amount.
                         considerationItem.startAmount = endAmount;
                     } else {
                         // Apply fraction to consideration item start amount.
-                        considerationItem.startAmount =
-                            _getFraction(numerator, denominator, considerationItem.startAmount);
+                        considerationItem.startAmount = _getFraction(
+                            numerator,
+                            denominator,
+                            considerationItem.startAmount
+                        );
                     }
 
                     // Adjust consideration amount using current time; round up.
@@ -381,17 +410,19 @@ contract OrderCombiner is OrderFulfiller, FulfillmentApplier {
                             endAmount,
                             startTime,
                             endTime,
-                            true // round up
+                            _runTimeConstantTrue() // round up
                         )
                     );
 
+                    // Set the start amount as equal to the current amount.
                     considerationItem.startAmount = currentAmount;
 
                     // Utilize assembly to manually "shift" the recipient value,
                     // then to copy the start amount to the recipient.
                     // Note that this sets up the memory layout that is
                     // subsequently relied upon by
-                    // _aggregateValidFulfillmentConsiderationItems.
+                    // _aggregateValidFulfillmentConsiderationItems as well as
+                    // during comparison against generated contract orders.
                     assembly {
                         // Derive the pointer to the recipient using the item
                         // pointer along with the offset to the recipient.
@@ -426,20 +457,27 @@ contract OrderCombiner is OrderFulfiller, FulfillmentApplier {
         // error buffer, the current function is not matchOrders or
         // matchAdvancedOrders. If the value is 1 + (1 << 230), then both the
         // 1st and 231st bits were set; in that case, revert with an error.
-        if (invalidNativeOfferItemErrorBuffer == NonMatchSelector_InvalidErrorValue) {
+        if (
+            invalidNativeOfferItemErrorBuffer
+                == NonMatchSelector_InvalidErrorValue
+        ) {
             _revertInvalidNativeOfferItem();
         }
 
         // Apply criteria resolvers to each order as applicable.
         _applyCriteriaResolvers(advancedOrders, criteriaResolvers);
 
-        // Emit an event for each order signifying that it has been fulfilled.
+        // Iterate over each order to check authorization status (for restricted
+        // orders), generate orders (for contract orders), and emit events (for
+        // all available orders) signifying that they have been fulfilled.
         // Skip overflow checks as all for loops are indexed starting at zero.
         unchecked {
+            // Declare stack variable outside of the loop to track order hash.
             bytes32 orderHash;
 
             // Iterate over each order.
             for (uint256 i = OneWord; i < terminalMemoryOffset; i += OneWord) {
+                // Retrieve order hash, bypassing out-of-range check.
                 assembly {
                     orderHash := mload(add(orderHashes, i))
                 }
@@ -449,13 +487,104 @@ contract OrderCombiner is OrderFulfiller, FulfillmentApplier {
                     continue;
                 }
 
-                // Retrieve order using assembly to bypass out-of-range check.
-                assembly {
-                    advancedOrder := mload(add(advancedOrders, i))
+                // Retrieve order using pointer libraries to bypass out-of-range
+                // check & cast function to avoid additional memory allocation.
+                AdvancedOrder memory advancedOrder = (
+                    _getReadAdvancedOrderByOffset()(advancedOrders, i)
+                );
+
+                // Determine if max number orders have already been fulfilled.
+                if (maximumFulfilled == 0) {
+                    // If so, set the order hash to zero.
+                    assembly {
+                        mstore(add(orderHashes, i), 0)
+                    }
+
+                    // Set the numerator to zero to signal to skip the order.
+                    advancedOrder.numerator = 0;
+
+                    // Continue iterating through the remaining orders.
+                    continue;
                 }
 
+                // Handle final checks and status updates based on order type.
+                if (advancedOrder.parameters.orderType != OrderType.CONTRACT) {
+                    // Check authorization for restricted orders.
+                    if (
+                        !_checkRestrictedAdvancedOrderAuthorization(
+                            advancedOrder,
+                            orderHashes,
+                            orderHash,
+                            (i >> OneWordShift) - 1,
+                            revertOnInvalid
+                        )
+                    ) {
+                        // If authorization check fails, set order hash to zero.
+                        assembly {
+                            mstore(add(orderHashes, i), 0)
+                        }
+
+                        // Set numerator to zero to signal to skip the order.
+                        advancedOrder.numerator = 0;
+
+                        // Continue iterating through the remaining orders.
+                        continue;
+                    }
+
+                    // Update status as long as some fraction is available.
+                    if (!_updateStatus(
+                        orderHash,
+                        advancedOrder.numerator,
+                        advancedOrder.denominator,
+                        _revertOnFailedUpdate(
+                            advancedOrder.parameters,
+                            revertOnInvalid
+                        )
+                    )) {
+                        // If status update fails, set the order hash to zero.
+                        assembly {
+                            mstore(add(orderHashes, i), 0)
+                        }
+
+                        // Set numerator to zero to signal to skip the order.
+                        advancedOrder.numerator = 0;
+
+                        // Continue iterating through the remaining orders.
+                        continue;
+                    }
+                } else {
+                    // Return the generated order based on the order params and
+                    // the provided extra data. If revertOnInvalid is true, the
+                    // function will revert if the input is invalid.
+                    orderHash = _getGeneratedOrder(
+                        advancedOrder.parameters,
+                        advancedOrder.extraData,
+                        revertOnInvalid
+                    );
+
+                    // Write the derived order hash to the order hashes array.
+                    assembly {
+                        mstore(add(orderHashes, i), orderHash)
+                    }
+
+                    // Handle invalid orders, indicated by a zero order hash.
+                    if (orderHash == bytes32(0)) {
+                        // Set numerator to zero to signal to skip the order.
+                        advancedOrder.numerator = 0;
+
+                        // Continue iterating through the remaining orders.
+                        continue;
+                    }
+                }
+
+                // Decrement the number of fulfilled orders.
+                // Skip underflow check as the condition before
+                // implies that maximumFulfilled > 0.
+                --maximumFulfilled;
+
                 // Retrieve parameters for the order in question.
-                OrderParameters memory orderParameters = (advancedOrder.parameters);
+                OrderParameters memory orderParameters =
+                    (advancedOrder.parameters);
 
                 // Emit an OrderFulfilled event.
                 _emitOrderFulfilledEvent(
@@ -535,12 +664,16 @@ contract OrderCombiner is OrderFulfiller, FulfillmentApplier {
         address recipient,
         bytes32[] memory orderHashes,
         bool containsNonOpen
-    ) internal returns (bool[] memory availableOrders, Execution[] memory executions) {
+    )
+        internal
+        returns (bool[] memory availableOrders, Execution[] memory executions)
+    {
         // Retrieve length of offer fulfillments array and place on the stack.
         uint256 totalOfferFulfillments = offerFulfillments.length;
 
         // Retrieve length of consideration fulfillments array & place on stack.
-        uint256 totalConsiderationFulfillments = (considerationFulfillments.length);
+        uint256 totalConsiderationFulfillments =
+            (considerationFulfillments.length);
 
         // Allocate an execution for each offer and consideration fulfillment.
         executions = new Execution[](
@@ -556,7 +689,11 @@ contract OrderCombiner is OrderFulfiller, FulfillmentApplier {
             for (uint256 i = 0; i < totalOfferFulfillments;) {
                 // Derive aggregated execution corresponding with fulfillment.
                 Execution memory execution = _aggregateAvailable(
-                    advancedOrders, Side.OFFER, offerFulfillments[i], fulfillerConduitKey, recipient
+                    advancedOrders,
+                    Side.OFFER,
+                    offerFulfillments[i],
+                    fulfillerConduitKey,
+                    recipient
                 );
 
                 // If the execution is filterable...
@@ -589,7 +726,8 @@ contract OrderCombiner is OrderFulfiller, FulfillmentApplier {
                     ++totalFilteredExecutions;
                 } else {
                     // Otherwise, assign the execution to the executions array.
-                    executions[i + totalOfferFulfillments - totalFilteredExecutions] = execution;
+                    executions[i + totalOfferFulfillments
+                        - totalFilteredExecutions] = execution;
                 }
 
                 // Increment iterator.
@@ -600,7 +738,10 @@ contract OrderCombiner is OrderFulfiller, FulfillmentApplier {
             if (totalFilteredExecutions != 0) {
                 // reduce the total length of the executions array.
                 assembly {
-                    mstore(executions, sub(mload(executions), totalFilteredExecutions))
+                    mstore(
+                        executions,
+                        sub(mload(executions), totalFilteredExecutions)
+                    )
                 }
             }
         }
@@ -611,8 +752,9 @@ contract OrderCombiner is OrderFulfiller, FulfillmentApplier {
         }
 
         // Perform final checks and return.
-        availableOrders =
-            _performFinalChecksAndExecuteOrders(advancedOrders, executions, orderHashes, recipient, containsNonOpen);
+        availableOrders = _performFinalChecksAndExecuteOrders(
+            advancedOrders, executions, orderHashes, recipient, containsNonOpen
+        );
 
         return (availableOrders, executions);
     }
@@ -658,39 +800,61 @@ contract OrderCombiner is OrderFulfiller, FulfillmentApplier {
         // accessed and modified, however.
         bytes memory accumulator = new bytes(AccumulatorDisarmed);
 
-        {
-            // Declare a variable for the available native token balance.
-            uint256 nativeTokenBalance;
-
-            // Retrieve the length of the executions array and place on stack.
-            uint256 totalExecutions = executions.length;
+        // Skip overflow check: loop index & executions length are both bounded.
+        unchecked {
+            // Determine the memory offset to terminate on during loops.
+            uint256 terminalMemoryOffset = (
+                (executions.length + 1) << OneWordShift
+            );
 
             // Iterate over each execution.
-            for (uint256 i = 0; i < totalExecutions;) {
-                // Retrieve the execution and the associated received item.
-                Execution memory execution = executions[i];
+            for (uint256 i = OneWord; i < terminalMemoryOffset; i += OneWord) {
+                // Get execution using pointer libraries to bypass out-of-range
+                // check & cast function to avoid additional memory allocation.
+                Execution memory execution = (
+                    _getReadExecutionByOffset()(executions, i)
+                );
+
+                // Retrieve the associated received item.
                 ReceivedItem memory item = execution.item;
 
-                // If execution transfers native tokens, reduce value available.
-                if (item.itemType == ItemType.NATIVE) {
-                    // Get the current available balance of native tokens.
-                    assembly {
-                        nativeTokenBalance := selfbalance()
-                    }
+                // If execution transfers native tokens, check available value.
+                assembly {
+                    // Ensure sufficient available balance for native transfers.
+                    if and(
+                        iszero(mload(item)), // itemType == ItemType.NATIVE
+                        // item.amount > address(this).balance
+                        gt(
+                            mload(
+                                add(
+                                    item,
+                                    ReceivedItem_amount_offset
+                                )
+                            ),
+                            selfbalance()
+                        )
+                    ) {
+                        // Store left-padded selector with push4,
+                        // mem[28:32] = selector
+                        mstore(
+                            0,
+                            InsufficientNativeTokensSupplied_error_selector
+                        )
 
-                    // Ensure that sufficient native tokens are still available.
-                    if (item.amount > nativeTokenBalance) {
-                        _revertInsufficientNativeTokensSupplied();
+                        // revert(abi.encodeWithSignature(
+                        //   "InsufficientNativeTokensSupplied()"
+                        // ))
+                        revert(
+                            Error_selector_offset,
+                            InsufficientNativeTokensSupplied_error_length
+                        )
                     }
                 }
 
                 // Transfer the item specified by the execution.
-                _transfer(item, execution.offerer, execution.conduitKey, accumulator);
-
-                // Skip overflow check as for loop is indexed starting at zero.
-                unchecked {
-                    ++i;
-                }
+                _transfer(
+                    item, execution.offerer, execution.conduitKey, accumulator
+                );
             }
         }
 
@@ -731,20 +895,33 @@ contract OrderCombiner is OrderFulfiller, FulfillmentApplier {
                         // Note that the transfer will not be reflected in the
                         // executions array.
                         if (offerItem.startAmount != 0) {
-                            // Replace the endAmount parameter with the recipient to
-                            // make offerItem compatible with the ReceivedItem input
-                            // to _transfer and cache the original endAmount so it
-                            // can be restored after the transfer.
-                            uint256 originalEndAmount = _replaceEndAmountWithRecipient(offerItem, recipient);
+                            // Replace endAmount parameter with the recipient to
+                            // make offerItem compatible with the ReceivedItem
+                            // input to _transfer & cache the original endAmount
+                            // so it can be restored after the transfer.
+                            uint256 originalEndAmount = (
+                                _replaceEndAmountWithRecipient(
+                                    offerItem,
+                                    recipient
+                                )
+                            );
 
                             // Transfer excess offer item amount to recipient.
                             _toOfferItemInput(_transfer)(
-                                offerItem, parameters.offerer, parameters.conduitKey, accumulator
+                                offerItem,
+                                parameters.offerer,
+                                parameters.conduitKey,
+                                accumulator
                             );
 
                             // Restore the original endAmount in offerItem.
                             assembly {
-                                mstore(add(offerItem, ReceivedItem_recipient_offset), originalEndAmount)
+                                mstore(
+                                    add(
+                                        offerItem, ReceivedItem_recipient_offset
+                                    ),
+                                    originalEndAmount
+                                )
                             }
                         }
 
@@ -755,14 +932,16 @@ contract OrderCombiner is OrderFulfiller, FulfillmentApplier {
 
                 {
                     // Read consideration items & ensure they are fulfilled.
-                    ConsiderationItem[] memory consideration = (parameters.consideration);
+                    ConsiderationItem[] memory consideration =
+                        (parameters.consideration);
 
                     // Read length of consideration array & place on stack.
                     uint256 totalConsiderationItems = consideration.length;
 
                     // Iterate over each consideration item.
                     for (uint256 j = 0; j < totalConsiderationItems; ++j) {
-                        ConsiderationItem memory considerationItem = (consideration[j]);
+                        ConsiderationItem memory considerationItem =
+                            (consideration[j]);
 
                         // Retrieve remaining amount on consideration item.
                         uint256 unmetAmount = considerationItem.startAmount;
@@ -776,8 +955,16 @@ contract OrderCombiner is OrderFulfiller, FulfillmentApplier {
                         assembly {
                             // Write recipient to startAmount.
                             mstore(
-                                add(considerationItem, ReceivedItem_amount_offset),
-                                mload(add(considerationItem, ConsiderationItem_recipient_offset))
+                                add(
+                                    considerationItem,
+                                    ReceivedItem_amount_offset
+                                ),
+                                mload(
+                                    add(
+                                        considerationItem,
+                                        ConsiderationItem_recipient_offset
+                                    )
+                                )
                             )
                         }
                     }
@@ -796,7 +983,9 @@ contract OrderCombiner is OrderFulfiller, FulfillmentApplier {
 
         // Return any remaining native token balance to the caller.
         if (remainingNativeTokenBalance != 0) {
-            _transferNativeTokens(payable(msg.sender), remainingNativeTokenBalance);
+            _transferNativeTokens(
+                payable(msg.sender), remainingNativeTokenBalance
+            );
         }
 
         // If any restricted or contract orders are present in the group of
@@ -808,7 +997,9 @@ contract OrderCombiner is OrderFulfiller, FulfillmentApplier {
                 // Ensure the order in question is being fulfilled.
                 if (availableOrders[i]) {
                     // Check restricted orders and contract orders.
-                    _assertRestrictedAdvancedOrderValidity(advancedOrders[i], orderHashes, orderHashes[i]);
+                    _assertRestrictedAdvancedOrderValidity(
+                        advancedOrders[i], orderHashes, orderHashes[i]
+                    );
                 }
 
                 // Skip overflow checks as for loop is indexed starting at zero.
@@ -903,11 +1094,16 @@ contract OrderCombiner is OrderFulfiller, FulfillmentApplier {
         Fulfillment[] memory fulfillments,
         address recipient
     ) internal returns (Execution[] memory /* executions */ ) {
+        // Create a `true` boolean variable to indicate that invalid orders
+        // should revert. Does not use a constant to avoid function
+        // specialization in solc that would increase contract size.
+        bool revertOnInvalid = _runTimeConstantTrue();
         // Validate orders, update order status, and determine item amounts.
-        (bytes32[] memory orderHashes, bool containsNonOpen) = _validateOrdersAndPrepareToFulfill(
+        (bytes32[] memory orderHashes, bool containsNonOpen) =
+        _validateOrdersAndPrepareToFulfill(
             advancedOrders,
             criteriaResolvers,
-            true, // Signifies that invalid orders should revert.
+            revertOnInvalid,
             advancedOrders.length,
             recipient
         );
@@ -916,7 +1112,13 @@ contract OrderCombiner is OrderFulfiller, FulfillmentApplier {
         _emitOrdersMatched(orderHashes);
 
         // Fulfill the orders using the supplied fulfillments and recipient.
-        return _fulfillAdvancedOrders(advancedOrders, fulfillments, orderHashes, recipient, containsNonOpen);
+        return _fulfillAdvancedOrders(
+            advancedOrders,
+            fulfillments,
+            orderHashes,
+            recipient,
+            containsNonOpen
+        );
     }
 
     /**
@@ -967,7 +1169,10 @@ contract OrderCombiner is OrderFulfiller, FulfillmentApplier {
 
                 // Derive the execution corresponding with the fulfillment.
                 Execution memory execution = _applyFulfillment(
-                    advancedOrders, fulfillment.offerComponents, fulfillment.considerationComponents, i
+                    advancedOrders,
+                    fulfillment.offerComponents,
+                    fulfillment.considerationComponents,
+                    i
                 );
 
                 // If the execution is filterable...
@@ -984,13 +1189,18 @@ contract OrderCombiner is OrderFulfiller, FulfillmentApplier {
             if (totalFilteredExecutions != 0) {
                 // reduce the total length of the executions array.
                 assembly {
-                    mstore(executions, sub(mload(executions), totalFilteredExecutions))
+                    mstore(
+                        executions,
+                        sub(mload(executions), totalFilteredExecutions)
+                    )
                 }
             }
         }
 
         // Perform final checks and execute orders.
-        _performFinalChecksAndExecuteOrders(advancedOrders, executions, orderHashes, recipient, containsNonOpen);
+        _performFinalChecksAndExecuteOrders(
+            advancedOrders, executions, orderHashes, recipient, containsNonOpen
+        );
 
         // Return the executions array.
         return executions;
@@ -1007,7 +1217,11 @@ contract OrderCombiner is OrderFulfiller, FulfillmentApplier {
      * @return filterable A boolean indicating whether the execution in question
      *                    can be filtered from the executions array.
      */
-    function _isFilterableExecution(Execution memory execution) internal pure returns (bool filterable) {
+    function _isFilterableExecution(Execution memory execution)
+        internal
+        pure
+        returns (bool filterable)
+    {
         // Utilize assembly to efficiently determine if execution is filterable.
         assembly {
             // Retrieve the received item referenced by the execution.
@@ -1018,15 +1232,46 @@ contract OrderCombiner is OrderFulfiller, FulfillmentApplier {
                 and(
                     // Determine if offerer and recipient are the same address.
                     eq(
-                        // Retrieve the recipient's address from the received item.
+                        // Retrieve recipient's address from the received item.
                         mload(add(item, ReceivedItem_recipient_offset)),
                         // Retrieve the offerer's address from the execution.
                         mload(add(execution, Execution_offerer_offset))
                     ),
-                    // Determine if received item's item type is non-zero, thereby
-                    // indicating that the execution does not involve native tokens.
+                    // Determine if received item's item type is non-zero,
+                    // thereby indicating that the execution does not involve
+                    // native tokens.
                     iszero(iszero(mload(item)))
                 )
+        }
+    }
+
+    /**
+     * @dev Internal view function to determine whether a status update failure
+     *      should cause a revert or allow a skipped order. The call must revert
+     *      if an `authorizeOrder` call has been successfully performed and the
+     *      status update cannot be performed, regardless of whether the order
+     *      could be otherwise marked as skipped. Note that a revert is not
+     *      required on a failed update if the call originates from the zone, as
+     *      no `authorizeOrder` call is performed in that case.
+     *
+     * @param orderParameters The order parameters in question.
+     * @param revertOnInvalid A boolean indicating whether the call should
+     *                        revert for non-restricted order types.
+     *
+     * @return revertOnFailedUpdate A boolean indicating whether the order
+     *                              should revert on a failed status update.
+     */
+    function _revertOnFailedUpdate(
+        OrderParameters memory orderParameters,
+        bool revertOnInvalid
+    ) internal view returns (bool revertOnFailedUpdate) {
+        OrderType orderType = orderParameters.orderType;
+        address zone = orderParameters.zone;
+        assembly {
+            revertOnFailedUpdate := or(
+                revertOnInvalid,
+                and(gt(orderType, 1), iszero(eq(caller(), zone)))
+            )
         }
     }
 }
