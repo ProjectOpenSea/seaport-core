@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.13;
+pragma solidity ^0.8.24;
 
-import {SeaportRouterInterface} from "seaport-types/src/interfaces/SeaportRouterInterface.sol";
+import { SeaportRouterInterface } from
+    "seaport-types/src/interfaces/SeaportRouterInterface.sol";
 
-import {SeaportInterface} from "seaport-types/src/interfaces/SeaportInterface.sol";
+import { SeaportInterface } from
+    "seaport-types/src/interfaces/SeaportInterface.sol";
 
 import {ReentrancyGuard} from "../lib/ReentrancyGuard.sol";
 
@@ -54,11 +56,16 @@ contract SeaportRouter is SeaportRouterInterface, ReentrancyGuard {
      *
      * @param params The parameters for fulfilling available advanced orders.
      */
-    function fulfillAvailableAdvancedOrders(FulfillAvailableAdvancedOrdersParams calldata params)
+    function fulfillAvailableAdvancedOrders(
+        FulfillAvailableAdvancedOrdersParams calldata params
+    )
         external
         payable
         override
-        returns (bool[][] memory availableOrders, Execution[][] memory executions)
+        returns (
+            bool[][] memory availableOrders,
+            Execution[][] memory executions
+        )
     {
         // Ensure this function cannot be triggered during a reentrant call.
         _setReentrancyGuard(true);
@@ -99,20 +106,24 @@ contract SeaportRouter is SeaportRouterInterface, ReentrancyGuard {
             _assertSeaportAllowed(params.seaportContracts[i]);
 
             // Put the order params on the stack.
-            AdvancedOrderParams calldata orderParams = params.advancedOrderParams[i];
+            AdvancedOrderParams calldata orderParams =
+                params.advancedOrderParams[i];
 
             // Assign the variables to the calldata params.
             calldataParams.advancedOrders = orderParams.advancedOrders;
             calldataParams.criteriaResolvers = orderParams.criteriaResolvers;
             calldataParams.offerFulfillments = orderParams.offerFulfillments;
-            calldataParams.considerationFulfillments = orderParams.considerationFulfillments;
+            calldataParams.considerationFulfillments =
+                orderParams.considerationFulfillments;
 
             // Execute the orders, collecting availableOrders and executions.
             // This is wrapped in a try/catch in case a single order is
             // executed that is no longer available, leading to a revert
             // with `NoSpecifiedOrdersAvailable()` that can be ignored.
-            try SeaportInterface(params.seaportContracts[i]).fulfillAvailableAdvancedOrders{
-                value: orderParams.etherValue
+            try SeaportInterface(
+                params.seaportContracts[i]
+            ).fulfillAvailableAdvancedOrders{
+                    value: orderParams.etherValue
             }(
                 calldataParams.advancedOrders,
                 calldataParams.criteriaResolvers,
@@ -121,7 +132,10 @@ contract SeaportRouter is SeaportRouterInterface, ReentrancyGuard {
                 calldataParams.fulfillerConduitKey,
                 calldataParams.recipient,
                 calldataParams.maximumFulfilled
-            ) returns (bool[] memory newAvailableOrders, Execution[] memory newExecutions) {
+            ) returns (
+                bool[] memory newAvailableOrders,
+                Execution[] memory newExecutions
+            ) {
                 availableOrders[i] = newAvailableOrders;
                 executions[i] = newExecutions;
 
@@ -160,7 +174,8 @@ contract SeaportRouter is SeaportRouterInterface, ReentrancyGuard {
 
                 // Pass through the custom error if the error is
                 // not NoSpecifiedOrdersAvailable()
-                if (customErrorSelector != NoSpecifiedOrdersAvailable.selector) {
+                if (customErrorSelector != NoSpecifiedOrdersAvailable.selector)
+                {
                     assembly {
                         revert(add(data, 32), mload(data))
                     }
@@ -193,7 +208,12 @@ contract SeaportRouter is SeaportRouterInterface, ReentrancyGuard {
      * @notice Returns the Seaport contracts allowed to be used through this
      *         router.
      */
-    function getAllowedSeaportContracts() external view override returns (address[] memory seaportContracts) {
+    function getAllowedSeaportContracts()
+        external
+        view
+        override
+        returns (address[] memory seaportContracts)
+    {
         seaportContracts = new address[](2);
         seaportContracts[0] = _SEAPORT_V1_4;
         seaportContracts[1] = _SEAPORT_V1_5;
@@ -203,7 +223,10 @@ contract SeaportRouter is SeaportRouterInterface, ReentrancyGuard {
      * @dev Reverts if the provided Seaport contract is not allowed.
      */
     function _assertSeaportAllowed(address seaport) internal view {
-        if (_cast(seaport == _SEAPORT_V1_4) | _cast(seaport == _SEAPORT_V1_5) == 0) {
+        if (
+            _cast(seaport == _SEAPORT_V1_4) | _cast(seaport == _SEAPORT_V1_5)
+                == 0
+        ) {
             revert SeaportNotAllowed(seaport);
         }
     }
@@ -214,11 +237,14 @@ contract SeaportRouter is SeaportRouterInterface, ReentrancyGuard {
      */
     function _returnExcessEther() private {
         // Send received funds back to msg.sender.
-        (bool success, bytes memory data) = payable(msg.sender).call{value: address(this).balance}("");
+        (bool success, bytes memory data) =
+            payable(msg.sender).call{ value: address(this).balance }("");
 
         // Revert with an error if the ether transfer failed.
         if (!success) {
-            revert EtherReturnTransferFailed(msg.sender, address(this).balance, data);
+            revert EtherReturnTransferFailed(
+                msg.sender, address(this).balance, data
+            );
         }
     }
 }

@@ -1,19 +1,21 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.17;
+pragma solidity ^0.8.24;
 
-import {ItemType, Side} from "seaport-types/src/lib/ConsiderationEnums.sol";
+import { ItemType, Side } from "seaport-types/src/lib/ConsiderationEnums.sol";
 
 import {
-    AdvancedOrder, Execution, FulfillmentComponent, ReceivedItem
+    AdvancedOrder,
+    Execution,
+    FulfillmentComponent,
+    ReceivedItem
 } from "seaport-types/src/lib/ConsiderationStructs.sol";
 
 import {
-    _revertMismatchedFulfillmentOfferAndConsiderationComponents,
-    _revertMissingFulfillmentComponentOnAggregation,
-    _revertOfferAndConsiderationRequiredOnFulfillment
+    _revertMissingFulfillmentComponentOnAggregation
 } from "seaport-types/src/lib/ConsiderationErrors.sol";
 
-import {FulfillmentApplicationErrors} from "seaport-types/src/interfaces/FulfillmentApplicationErrors.sol";
+import { FulfillmentApplicationErrors } from
+    "seaport-types/src/interfaces/FulfillmentApplicationErrors.sol";
 
 import {
     AdvancedOrder_numerator_offset,
@@ -37,8 +39,13 @@ import {
     Error_selector_offset,
     InvalidFulfillmentComponentData_error_length,
     InvalidFulfillmentComponentData_error_selector,
+    MismatchedOfferAndConsiderationComponents_error_idx_ptr,
+    MismatchedOfferAndConsiderationComponents_error_length,
+    MismatchedOfferAndConsiderationComponents_error_selector,
     MissingItemAmount_error_length,
     MissingItemAmount_error_selector,
+    OfferAndConsiderationRequiredOnFulfillment_error_length,
+    OfferAndConsiderationRequiredOnFulfillment_error_selector,
     Panic_arithmetic,
     Panic_error_code_ptr,
     Panic_error_length,
@@ -78,15 +85,35 @@ contract FulfillmentApplier is FulfillmentApplicationErrors {
         uint256 fulfillmentIndex
     ) internal pure returns (Execution memory execution) {
         // Ensure 1+ of both offer and consideration components are supplied.
-        if (offerComponents.length == 0 || considerationComponents.length == 0) {
-            _revertOfferAndConsiderationRequiredOnFulfillment();
+        assembly {
+            if or(
+                iszero(mload(offerComponents)),
+                iszero(mload(considerationComponents))
+            ) {
+                // Store left-padded selector with push4 (reduces bytecode),
+                // mem[28:32] = selector
+                mstore(
+                    0,
+                    OfferAndConsiderationRequiredOnFulfillment_error_selector
+                )
+
+                // revert(abi.encodeWithSignature(
+                //     "OfferAndConsiderationRequiredOnFulfillment()"
+                // ))
+                revert(
+                    Error_selector_offset,
+                    OfferAndConsiderationRequiredOnFulfillment_error_length
+                )
+            }
         }
 
         // Declare a new Execution struct.
         Execution memory considerationExecution;
 
         // Validate & aggregate consideration items to new Execution object.
-        _aggregateValidFulfillmentConsiderationItems(advancedOrders, considerationComponents, considerationExecution);
+        _aggregateValidFulfillmentConsiderationItems(
+            advancedOrders, considerationComponents, considerationExecution
+        );
 
         // Retrieve the consideration item from the execution struct.
         ReceivedItem memory considerationItem = considerationExecution.item;
@@ -105,32 +132,67 @@ contract FulfillmentApplier is FulfillmentApplicationErrors {
         // Recipient does not need to be specified because it will always be set
         // to that of the consideration.
         // Validate & aggregate offer items to Execution object.
-        _aggregateValidFulfillmentOfferItems(advancedOrders, offerComponents, execution);
+        _aggregateValidFulfillmentOfferItems(
+            advancedOrders, offerComponents, execution
+        );
+
+        ReceivedItem memory executionItem = execution.item;
 
         // Ensure offer & consideration item types, tokens, & identifiers match.
         // (a != b || c != d || e != f) == (((a ^ b) | (c ^ d) | (e ^ f)) != 0),
         // but the second expression requires less gas to evaluate.
-        if (
-            (
-                (uint8(execution.item.itemType) ^ uint8(considerationItem.itemType))
-                    | (uint160(execution.item.token) ^ uint160(considerationItem.token))
-                    | (execution.item.identifier ^ considerationItem.identifier)
-            ) != 0
-        ) {
-            _revertMismatchedFulfillmentOfferAndConsiderationComponents(fulfillmentIndex);
+        assembly {
+            if or(
+                or(
+                    xor(
+                        mload(executionItem), // no offset for item type
+                        mload(considerationItem) // no offset for item type
+                    ),
+                    xor(
+                        mload(add(executionItem, Common_token_offset)),
+                        mload(add(considerationItem, Common_token_offset))
+                    )
+                ),
+                xor(
+                    mload(add(executionItem, Common_identifier_offset)),
+                    mload(add(considerationItem, Common_identifier_offset))
+                )
+            ) {
+                // Store left-padded selector with push4 (reduces bytecode),
+                // mem[28:32] = selector
+                mstore(
+                    0,
+                    MismatchedOfferAndConsiderationComponents_error_selector
+                )
+
+                // Store fulfillment index argument.
+                mstore(
+                    MismatchedOfferAndConsiderationComponents_error_idx_ptr,
+                    fulfillmentIndex
+                )
+
+                // Revert: `MismatchedOfferAndConsiderationComponents(uint256)`
+                revert(
+                    Error_selector_offset,
+                    MismatchedOfferAndConsiderationComponents_error_length
+                )
+            }
         }
 
         // If total consideration amount exceeds the offer amount...
-        if (considerationItem.amount > execution.item.amount) {
+        if (considerationItem.amount > executionItem.amount) {
             // Retrieve the first consideration component from the fulfillment.
-            FulfillmentComponent memory targetComponent = (considerationComponents[0]);
+            FulfillmentComponent memory targetComponent =
+                (considerationComponents[0]);
 
             // Skip underflow check as the conditional being true implies that
             // considerationItem.amount > execution.item.amount.
             unchecked {
                 // Add excess consideration item amount to original order array.
-                advancedOrders[targetComponent.orderIndex].parameters.consideration[targetComponent.itemIndex]
-                    .startAmount = (considerationItem.amount - execution.item.amount);
+                advancedOrders[targetComponent.orderIndex]
+                    .parameters
+                    .consideration[targetComponent.itemIndex].startAmount =
+                    (considerationItem.amount - executionItem.amount);
             }
         } else {
             // Retrieve the first offer component from the fulfillment.
@@ -140,16 +202,21 @@ contract FulfillmentApplier is FulfillmentApplicationErrors {
             // execution.item.amount >= considerationItem.amount.
             unchecked {
                 // Add excess offer item amount to the original array of orders.
-                advancedOrders[targetComponent.orderIndex].parameters.offer[targetComponent.itemIndex].startAmount =
-                    (execution.item.amount - considerationItem.amount);
+                advancedOrders[
+                    targetComponent.orderIndex
+                ].parameters.offer[
+                    targetComponent.itemIndex
+                ].startAmount = (
+                    executionItem.amount - considerationItem.amount
+                );
             }
 
             // Reduce total offer amount to equal the consideration amount.
-            execution.item.amount = considerationItem.amount;
+            executionItem.amount = considerationItem.amount;
         }
 
         // Reuse consideration recipient.
-        execution.item.recipient = considerationItem.recipient;
+        executionItem.recipient = considerationItem.recipient;
 
         // Return the final execution that will be triggered for relevant items.
         return execution; // Execution(considerationItem, offerer, conduitKey);
@@ -199,12 +266,16 @@ contract FulfillmentApplier is FulfillmentApplicationErrors {
                 item.recipient = payable(recipient);
 
                 // Return execution for aggregated items provided by offerer.
-                _aggregateValidFulfillmentOfferItems(advancedOrders, fulfillmentComponents, execution);
+                _aggregateValidFulfillmentOfferItems(
+                    advancedOrders, fulfillmentComponents, execution
+                );
             } else {
                 // Otherwise, fulfillment components are consideration
                 // components. Return execution for aggregated items provided by
                 // the fulfiller.
-                _aggregateValidFulfillmentConsiderationItems(advancedOrders, fulfillmentComponents, execution);
+                _aggregateValidFulfillmentConsiderationItems(
+                    advancedOrders, fulfillmentComponents, execution
+                );
 
                 // Set the caller as the offerer on the execution.
                 execution.offerer = msg.sender;
@@ -255,9 +326,12 @@ contract FulfillmentApplier is FulfillmentApplicationErrors {
                 // Create variable to track position in offerComponents head.
                 let fulfillmentHeadPtr := offerComponents
 
-                // Get position one word past last element in head of array.
-                let endPtr := add(offerComponents, shl(OneWordShift, mload(offerComponents)))
-            } lt(fulfillmentHeadPtr, endPtr) {} {
+                // Get position of the last element in head of array.
+                let endPtr := add(
+                    offerComponents,
+                    shl(OneWordShift, mload(offerComponents))
+                )
+            } lt(fulfillmentHeadPtr, endPtr) { } {
                 // Increment position in considerationComponents head.
                 fulfillmentHeadPtr := add(fulfillmentHeadPtr, OneWord)
 
@@ -265,31 +339,45 @@ contract FulfillmentApplier is FulfillmentApplicationErrors {
                 let orderIndex := mload(mload(fulfillmentHeadPtr))
 
                 // Ensure that the order index is not out of range.
-                if iszero(lt(orderIndex, mload(advancedOrders))) { throwInvalidFulfillmentComponentData() }
+                if iszero(lt(orderIndex, mload(advancedOrders))) {
+                    throwInvalidFulfillmentComponentData()
+                }
 
                 // Read advancedOrders[orderIndex] pointer from its array head.
                 let orderPtr :=
                     mload(
-                        // Calculate head position of advancedOrders[orderIndex].
-                        add(add(advancedOrders, OneWord), shl(OneWordShift, orderIndex))
+                        // Calculate head position of advancedOrders[orderIndex]
+                        add(
+                            add(advancedOrders, OneWord),
+                            shl(OneWordShift, orderIndex)
+                        )
                     )
 
                 // Read the pointer to OrderParameters from the AdvancedOrder.
                 let paramsPtr := mload(orderPtr)
 
                 // Retrieve item index using an offset of fulfillment pointer.
-                let itemIndex := mload(add(mload(fulfillmentHeadPtr), Fulfillment_itemIndex_offset))
+                let itemIndex :=
+                    mload(
+                        add(
+                            mload(fulfillmentHeadPtr),
+                            Fulfillment_itemIndex_offset
+                        )
+                    )
 
                 let offerItemPtr
                 {
                     // Load the offer array pointer.
-                    let offerArrPtr := mload(add(paramsPtr, OrderParameters_offer_head_offset))
+                    let offerArrPtr :=
+                        mload(add(paramsPtr, OrderParameters_offer_head_offset))
 
                     // If the offer item index is out of range or the numerator
                     // is zero, skip this item.
                     if or(
                         iszero(lt(itemIndex, mload(offerArrPtr))),
-                        iszero(mload(add(orderPtr, AdvancedOrder_numerator_offset)))
+                        iszero(
+                            mload(add(orderPtr, AdvancedOrder_numerator_offset))
+                        )
                     ) { continue }
 
                     // Retrieve offer item pointer using the item index.
@@ -298,7 +386,7 @@ contract FulfillmentApplier is FulfillmentApplicationErrors {
                             add(
                                 // Get pointer to beginning of receivedItem.
                                 add(offerArrPtr, OneWord),
-                                // Calculate offset to pointer for desired order.
+                                // Calculate offset to pointer for the order.
                                 shl(OneWordShift, itemIndex)
                             )
                         )
@@ -314,7 +402,14 @@ contract FulfillmentApplier is FulfillmentApplicationErrors {
 
                     // Update error buffer:
                     // 1 = zero amount, 2 = overflow, 3 = both.
-                    errorBuffer := or(errorBuffer, or(shl(1, lt(newAmount, amount)), iszero(mload(amountPtr))))
+                    errorBuffer :=
+                        or(
+                            errorBuffer,
+                            or(
+                                shl(1, lt(newAmount, amount)),
+                                iszero(mload(amountPtr))
+                            )
+                        )
 
                     // Update the amount to the new, summed amount.
                     amount := newAmount
@@ -336,30 +431,38 @@ contract FulfillmentApplier is FulfillmentApplicationErrors {
                     mstore(receivedItem, mload(offerItemPtr))
 
                     // Set the token on the received item.
-                    mstore(add(receivedItem, Common_token_offset), mload(add(offerItemPtr, Common_token_offset)))
+                    mstore(
+                        add(receivedItem, Common_token_offset),
+                        mload(add(offerItemPtr, Common_token_offset))
+                    )
 
                     // Set the identifier on the received item.
                     mstore(
-                        add(receivedItem, Common_identifier_offset), mload(add(offerItemPtr, Common_identifier_offset))
+                        add(receivedItem, Common_identifier_offset),
+                        mload(add(offerItemPtr, Common_identifier_offset))
                     )
 
                     // Set offerer on returned execution using order pointer.
-                    mstore(add(execution, Execution_offerer_offset), mload(paramsPtr))
+                    mstore(
+                        add(execution, Execution_offerer_offset),
+                        mload(paramsPtr)
+                    )
 
                     // Set execution conduitKey via order pointer offset.
                     mstore(
-                        add(execution, Execution_conduit_offset), mload(add(paramsPtr, OrderParameters_conduit_offset))
+                        add(execution, Execution_conduit_offset),
+                        mload(add(paramsPtr, OrderParameters_conduit_offset))
                     )
 
                     // Calculate the hash of (itemType, token, identifier).
-                    dataHash := keccak256(receivedItem, ReceivedItem_CommonParams_size)
+                    dataHash :=
+                        keccak256(receivedItem, ReceivedItem_CommonParams_size)
 
                     // If component index > 0, swap component pointer with
                     // pointer to first component so that any remainder after
                     // fulfillment can be added back to the first item.
                     let firstFulfillmentHeadPtr := add(offerComponents, OneWord)
                     if xor(firstFulfillmentHeadPtr, fulfillmentHeadPtr) {
-                        let firstFulfillmentPtr := mload(firstFulfillmentHeadPtr)
                         let fulfillmentPtr := mload(fulfillmentHeadPtr)
                         mstore(firstFulfillmentHeadPtr, fulfillmentPtr)
                     }
@@ -369,15 +472,28 @@ contract FulfillmentApplier is FulfillmentApplicationErrors {
                     if or(
                         or(
                             // The offerer must match on both items.
-                            xor(mload(paramsPtr), mload(add(execution, Execution_offerer_offset))),
+                            xor(
+                                mload(paramsPtr),
+                                mload(add(execution, Execution_offerer_offset))
+                            ),
                             // The conduit key must match on both items.
                             xor(
-                                mload(add(paramsPtr, OrderParameters_conduit_offset)),
+                                mload(
+                                    add(
+                                        paramsPtr,
+                                        OrderParameters_conduit_offset
+                                    )
+                                ),
                                 mload(add(execution, Execution_conduit_offset))
                             )
                         ),
                         // The itemType, token, and identifier must match.
-                        xor(dataHash, keccak256(offerItemPtr, ReceivedItem_CommonParams_size))
+                        xor(
+                            dataHash,
+                            keccak256(
+                                offerItemPtr, ReceivedItem_CommonParams_size
+                            )
+                        )
                     ) {
                         // Throw if any of the requirements are not met.
                         throwInvalidFulfillmentComponentData()
@@ -397,7 +513,9 @@ contract FulfillmentApplier is FulfillmentApplicationErrors {
                     mstore(0, MissingItemAmount_error_selector)
 
                     // revert(abi.encodeWithSignature("MissingItemAmount()"))
-                    revert(Error_selector_offset, MissingItemAmount_error_length)
+                    revert(
+                        Error_selector_offset, MissingItemAmount_error_length
+                    )
                 }
 
                 // If errorBuffer is not 1 or 0, the sum overflowed.
@@ -413,7 +531,10 @@ contract FulfillmentApplier is FulfillmentApplicationErrors {
                 // revert(abi.encodeWithSignature(
                 //     "InvalidFulfillmentComponentData()"
                 // ))
-                revert(Error_selector_offset, InvalidFulfillmentComponentData_error_length)
+                revert(
+                    Error_selector_offset,
+                    InvalidFulfillmentComponentData_error_length
+                )
             }
 
             // Declare function for reverts due to arithmetic overflows.
@@ -468,9 +589,13 @@ contract FulfillmentApplier is FulfillmentApplicationErrors {
                 // Track position in considerationComponents head.
                 let fulfillmentHeadPtr := considerationComponents
 
-                // Get position one word past last element in head of array.
-                let endPtr := add(considerationComponents, shl(OneWordShift, mload(considerationComponents)))
-            } lt(fulfillmentHeadPtr, endPtr) {} {
+                // Get position of the last element in head of array.
+                let endPtr :=
+                    add(
+                        considerationComponents,
+                        shl(OneWordShift, mload(considerationComponents))
+                    )
+            } lt(fulfillmentHeadPtr, endPtr) { } {
                 // Increment position in considerationComponents head.
                 fulfillmentHeadPtr := add(fulfillmentHeadPtr, OneWord)
 
@@ -478,17 +603,28 @@ contract FulfillmentApplier is FulfillmentApplicationErrors {
                 let orderIndex := mload(mload(fulfillmentHeadPtr))
 
                 // Ensure that the order index is not out of range.
-                if iszero(lt(orderIndex, mload(advancedOrders))) { throwInvalidFulfillmentComponentData() }
+                if iszero(lt(orderIndex, mload(advancedOrders))) {
+                    throwInvalidFulfillmentComponentData()
+                }
 
                 // Read advancedOrders[orderIndex] pointer from its array head.
                 let orderPtr :=
                     mload(
-                        // Calculate head position of advancedOrders[orderIndex].
-                        add(add(advancedOrders, OneWord), shl(OneWordShift, orderIndex))
+                        // Derive head position of advancedOrders[orderIndex].
+                        add(
+                            add(advancedOrders, OneWord),
+                            shl(OneWordShift, orderIndex)
+                        )
                     )
 
                 // Retrieve item index using an offset of fulfillment pointer.
-                let itemIndex := mload(add(mload(fulfillmentHeadPtr), Fulfillment_itemIndex_offset))
+                let itemIndex :=
+                    mload(
+                        add(
+                            mload(fulfillmentHeadPtr),
+                            Fulfillment_itemIndex_offset
+                        )
+                    )
 
                 let considerationItemPtr
                 {
@@ -496,7 +632,7 @@ contract FulfillmentApplier is FulfillmentApplicationErrors {
                     let considerationArrPtr :=
                         mload(
                             add(
-                                // Read OrderParameters pointer from AdvancedOrder.
+                                // Read OrderParameters pointer from the order.
                                 mload(orderPtr),
                                 OrderParameters_consideration_head_offset
                             )
@@ -506,7 +642,9 @@ contract FulfillmentApplier is FulfillmentApplicationErrors {
                     // numerator is zero, skip this item.
                     if or(
                         iszero(lt(itemIndex, mload(considerationArrPtr))),
-                        iszero(mload(add(orderPtr, AdvancedOrder_numerator_offset)))
+                        iszero(
+                            mload(add(orderPtr, AdvancedOrder_numerator_offset))
+                        )
                     ) { continue }
 
                     // Retrieve consideration item pointer using the item index.
@@ -515,7 +653,7 @@ contract FulfillmentApplier is FulfillmentApplicationErrors {
                             add(
                                 // Get pointer to beginning of receivedItem.
                                 add(considerationArrPtr, OneWord),
-                                // Calculate offset to pointer for desired order.
+                                // Calculate offset to pointer for the order.
                                 shl(OneWordShift, itemIndex)
                             )
                         )
@@ -524,14 +662,22 @@ contract FulfillmentApplier is FulfillmentApplicationErrors {
                 // Declare a separate scope for the amount update.
                 {
                     // Retrieve amount pointer using consideration item pointer.
-                    let amountPtr := add(considerationItemPtr, Common_amount_offset)
+                    let amountPtr :=
+                        add(considerationItemPtr, Common_amount_offset)
 
                     // Add consideration item amount to execution amount.
                     let newAmount := add(amount, mload(amountPtr))
 
                     // Update error buffer:
                     // 1 = zero amount, 2 = overflow, 3 = both.
-                    errorBuffer := or(errorBuffer, or(shl(1, lt(newAmount, amount)), iszero(mload(amountPtr))))
+                    errorBuffer :=
+                        or(
+                            errorBuffer,
+                            or(
+                                shl(1, lt(newAmount, amount)),
+                                iszero(mload(amountPtr))
+                            )
+                        )
 
                     // Update the amount to the new, summed amount.
                     amount := newAmount
@@ -553,13 +699,16 @@ contract FulfillmentApplier is FulfillmentApplicationErrors {
 
                     // Set the token on the received item.
                     mstore(
-                        add(receivedItem, Common_token_offset), mload(add(considerationItemPtr, Common_token_offset))
+                        add(receivedItem, Common_token_offset),
+                        mload(add(considerationItemPtr, Common_token_offset))
                     )
 
                     // Set the identifier on the received item.
                     mstore(
                         add(receivedItem, Common_identifier_offset),
-                        mload(add(considerationItemPtr, Common_identifier_offset))
+                        mload(
+                            add(considerationItemPtr, Common_identifier_offset)
+                        )
                     )
 
                     // Set the recipient on the received item. Note that this
@@ -567,21 +716,27 @@ contract FulfillmentApplier is FulfillmentApplicationErrors {
                     // _validateOrdersAndPrepareToFulfill function.
                     mstore(
                         add(receivedItem, ReceivedItem_recipient_offset),
-                        mload(add(considerationItemPtr, ReceivedItem_recipient_offset))
+                        mload(
+                            add(
+                                considerationItemPtr,
+                                ReceivedItem_recipient_offset
+                            )
+                        )
                     )
 
                     // Calculate the hash of (itemType, token, identifier,
                     // recipient). This is run after amount is set to zero, so
                     // there will be one blank word after identifier included in
                     // the hash buffer.
-                    dataHash := keccak256(considerationItemPtr, ReceivedItem_size)
+                    dataHash :=
+                        keccak256(considerationItemPtr, ReceivedItem_size)
 
                     // If component index > 0, swap component pointer with
                     // pointer to first component so that any remainder after
                     // fulfillment can be added back to the first item.
-                    let firstFulfillmentHeadPtr := add(considerationComponents, OneWord)
+                    let firstFulfillmentHeadPtr :=
+                        add(considerationComponents, OneWord)
                     if xor(firstFulfillmentHeadPtr, fulfillmentHeadPtr) {
-                        let firstFulfillmentPtr := mload(firstFulfillmentHeadPtr)
                         let fulfillmentPtr := mload(fulfillmentHeadPtr)
                         mstore(firstFulfillmentHeadPtr, fulfillmentPtr)
                     }
@@ -617,7 +772,9 @@ contract FulfillmentApplier is FulfillmentApplicationErrors {
                     mstore(0, MissingItemAmount_error_selector)
 
                     // revert(abi.encodeWithSignature("MissingItemAmount()"))
-                    revert(Error_selector_offset, MissingItemAmount_error_length)
+                    revert(
+                        Error_selector_offset, MissingItemAmount_error_length
+                    )
                 }
 
                 // If errorBuffer is not 1 or 0, `amount` overflowed.
@@ -633,7 +790,10 @@ contract FulfillmentApplier is FulfillmentApplicationErrors {
                 // revert(abi.encodeWithSignature(
                 //     "InvalidFulfillmentComponentData()"
                 // ))
-                revert(Error_selector_offset, InvalidFulfillmentComponentData_error_length)
+                revert(
+                    Error_selector_offset,
+                    InvalidFulfillmentComponentData_error_length
+                )
             }
 
             // Declare function for reverts due to arithmetic overflows.

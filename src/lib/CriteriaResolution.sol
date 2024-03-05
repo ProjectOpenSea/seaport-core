@@ -1,10 +1,15 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.17;
+pragma solidity ^0.8.24;
 
-import {ItemType, Side} from "seaport-types/src/lib/ConsiderationEnums.sol";
+import {
+    ItemType,
+    OrderType,
+    Side
+} from "seaport-types/src/lib/ConsiderationEnums.sol";
 
 import {
     AdvancedOrder,
+    ConsiderationItem,
     CriteriaResolver,
     MemoryPointer,
     OfferItem,
@@ -14,12 +19,11 @@ import {
 import {
     _revertCriteriaNotEnabledForItem,
     _revertInvalidProof,
-    _revertOrderCriteriaResolverOutOfRange,
-    _revertUnresolvedConsiderationCriteria,
-    _revertUnresolvedOfferCriteria
+    _revertOrderCriteriaResolverOutOfRange
 } from "seaport-types/src/lib/ConsiderationErrors.sol";
 
-import {CriteriaResolutionErrors} from "seaport-types/src/interfaces/CriteriaResolutionErrors.sol";
+import { CriteriaResolutionErrors } from
+    "seaport-types/src/interfaces/CriteriaResolutionErrors.sol";
 
 import {
     OneWord,
@@ -32,7 +36,12 @@ import {
 import {
     ConsiderationCriteriaResolverOutOfRange_err_selector,
     Error_selector_offset,
-    OfferCriteriaResolverOutOfRange_error_selector
+    OfferCriteriaResolverOutOfRange_error_selector,
+    UnresolvedConsiderationCriteria_error_itemIndex_ptr,
+    UnresolvedConsiderationCriteria_error_length,
+    UnresolvedConsiderationCriteria_error_orderIndex_ptr,
+    UnresolvedConsiderationCriteria_error_selector,
+    UnresolvedOfferCriteria_error_selector
 } from "seaport-types/src/lib/ConsiderationErrorConstants.sol";
 
 /**
@@ -56,10 +65,10 @@ contract CriteriaResolution is CriteriaResolutionErrors {
      *                           any transferable token identifier is valid and
      *                           that no proof needs to be supplied.
      */
-    function _applyCriteriaResolvers(AdvancedOrder[] memory advancedOrders, CriteriaResolver[] memory criteriaResolvers)
-        internal
-        pure
-    {
+    function _applyCriteriaResolvers(
+        AdvancedOrder[] memory advancedOrders,
+        CriteriaResolver[] memory criteriaResolvers
+    ) internal pure {
         // Skip overflow checks as all for loops are indexed starting at zero.
         unchecked {
             // Retrieve length of criteria resolvers array and place on stack.
@@ -71,14 +80,17 @@ contract CriteriaResolution is CriteriaResolutionErrors {
             // Iterate over each criteria resolver.
             for (uint256 i = 0; i < totalCriteriaResolvers; ++i) {
                 // Retrieve the criteria resolver.
-                CriteriaResolver memory criteriaResolver = (criteriaResolvers[i]);
+                CriteriaResolver memory criteriaResolver =
+                    (criteriaResolvers[i]);
 
                 // Read the order index from memory and place it on the stack.
                 uint256 orderIndex = criteriaResolver.orderIndex;
 
                 // Ensure that the order index is in range.
                 if (orderIndex >= totalAdvancedOrders) {
-                    _revertOrderCriteriaResolverOutOfRange(criteriaResolver.side);
+                    _revertOrderCriteriaResolverOutOfRange(
+                        criteriaResolver.side
+                    );
                 }
 
                 // Retrieve the referenced advanced order.
@@ -90,7 +102,8 @@ contract CriteriaResolution is CriteriaResolutionErrors {
                 }
 
                 // Retrieve the parameters for the order.
-                OrderParameters memory orderParameters = (advancedOrder.parameters);
+                OrderParameters memory orderParameters =
+                    (advancedOrder.parameters);
 
                 {
                     // Get a pointer to the list of items to give to
@@ -103,15 +116,18 @@ contract CriteriaResolution is CriteriaResolutionErrors {
                     uint256 componentIndex = criteriaResolver.index;
 
                     // Get error selector for `OfferCriteriaResolverOutOfRange`.
-                    uint256 errorSelector = (OfferCriteriaResolverOutOfRange_error_selector);
+                    uint256 errorSelector =
+                        (OfferCriteriaResolverOutOfRange_error_selector);
 
                     // If the resolver refers to a consideration item...
                     if (criteriaResolver.side != Side.OFFER) {
                         // Get the pointer to `orderParameters.consideration`
                         // Using the array directly has a significant impact on
                         // the optimized compiler output.
-                        MemoryPointer considerationPtr =
-                            orderParameters.toMemoryPointer().pptr(OrderParameters_consideration_head_offset);
+                        MemoryPointer considerationPtr = orderParameters
+                            .toMemoryPointer().pptrOffset(
+                            OrderParameters_consideration_head_offset
+                        );
 
                         // Replace the items pointer with a pointer to the
                         // consideration array.
@@ -121,7 +137,9 @@ contract CriteriaResolution is CriteriaResolutionErrors {
 
                         // Replace the error selector with the selector for
                         // `ConsiderationCriteriaResolverOutOfRange`.
-                        errorSelector = (ConsiderationCriteriaResolverOutOfRange_err_selector);
+                        errorSelector = (
+                            ConsiderationCriteriaResolverOutOfRange_err_selector
+                        );
                     }
 
                     // Ensure that the component index is in range.
@@ -145,7 +163,11 @@ contract CriteriaResolution is CriteriaResolutionErrors {
                     }
 
                     // Apply the criteria resolver to the item in question.
-                    _updateCriteriaItem(items, componentIndex, criteriaResolver);
+                    _updateCriteriaItem(
+                        items,
+                        componentIndex,
+                        criteriaResolver
+                    );
                 }
             }
 
@@ -160,30 +182,117 @@ contract CriteriaResolution is CriteriaResolutionErrors {
                 }
 
                 // Retrieve the parameters for the order.
-                OrderParameters memory orderParameters = (advancedOrder.parameters);
+                OrderParameters memory orderParameters =
+                    (advancedOrder.parameters);
 
-                // Read consideration length from memory and place on stack.
-                uint256 totalItems = orderParameters.consideration.length;
+                OrderType orderType = orderParameters.orderType;
 
-                // Iterate over each consideration item on the order.
-                for (uint256 j = 0; j < totalItems; ++j) {
-                    // Ensure item type no longer indicates criteria usage.
-                    if (_isItemWithCriteria(orderParameters.consideration[j].itemType)) {
-                        _revertUnresolvedConsiderationCriteria(i, j);
-                    }
-                }
+                _ensureAllRequiredCriteriaResolved(
+                    i,
+                    orderParameters.consideration,
+                    orderType,
+                    UnresolvedConsiderationCriteria_error_selector
+                );
 
-                // Read offer length from memory and place on stack.
-                totalItems = orderParameters.offer.length;
+                _toOfferItemArgumentType(_ensureAllRequiredCriteriaResolved)(
+                    i,
+                    orderParameters.offer,
+                    orderType,
+                    UnresolvedOfferCriteria_error_selector
+                );
+            }
+        }
+    }
 
-                // Iterate over each offer item on the order.
-                for (uint256 j = 0; j < totalItems; ++j) {
-                    // Ensure item type no longer indicates criteria usage.
-                    if (_isItemWithCriteria(orderParameters.offer[j].itemType)) {
-                        _revertUnresolvedOfferCriteria(i, j);
-                    }
+    /**
+     * @dev Internal pure function to examine an array of items and ensure that
+     *      all criteria-based items (with the exception of wildcard items on
+     *      contract orders) have had a criteria resolver successfully applied.
+     *
+     * @param orderIndex     The index of the order being examined.
+     * @param items          The items to examine. These are consideration items
+     *                       in the default case, but offer items are also
+     *                       casted to consideration items as required.
+     * @param orderType      The type of order being examined.
+     * @param revertSelector The selector to use when reverting.
+     */
+    function _ensureAllRequiredCriteriaResolved(
+        uint256 orderIndex,
+        ConsiderationItem[] memory items,
+        OrderType orderType,
+        uint256 revertSelector
+    ) internal pure {
+        // Read items array length from memory and place on stack.
+        uint256 totalItems = items.length;
+
+        // Iterate over each item on the order.
+        for (uint256 i = 0; i < totalItems; ++i) {
+            ConsiderationItem memory item = items[i];
+
+            // Revert if the item is still a criteria item unless the
+            // order is a contract order and the identifier is 0.
+            ItemType itemType = item.itemType;
+            uint256 identifierOrCriteria = item.identifierOrCriteria;
+
+            assembly {
+                if and(
+                    gt(itemType, 3), // Criteria-based item
+                    or(
+                        iszero(eq(orderType, 4)), // not OrderType.CONTRACT
+                        iszero(iszero(identifierOrCriteria)) // not wildcard
+                    )
+                ) {
+                    // Store left-padded selector with push4 (reduces bytecode),
+                    // mem[28:32] = selector
+                    mstore(0, revertSelector)
+
+                    // Store arguments.
+                    mstore(
+                        UnresolvedConsiderationCriteria_error_orderIndex_ptr,
+                        orderIndex
+                    )
+                    mstore(
+                        UnresolvedConsiderationCriteria_error_itemIndex_ptr,
+                        i
+                    )
+
+                    // Revert with appropriate UnresolvedCriteria error message.
+                    // Unresolved[Offer|Consideration]Criteria(uint256, uint256)
+                    revert(
+                        Error_selector_offset,
+                        UnresolvedConsiderationCriteria_error_length
+                    )
                 }
             }
+        }
+    }
+
+    /**
+     * @dev Internal pure function to perform a function cast from a function
+     *      that accepts consideration items to a function that accepts offer
+     *      items, used by _ensureAllRequiredCriteriaResolved to ensure that
+     *      all necessary criteria items have been resolved for an order.
+     *
+     * @param inFn  The function that accepts consideration items.
+     * @param outFn The function that accepts offer items.
+     */
+    function _toOfferItemArgumentType(
+        function(
+            uint256,
+            ConsiderationItem[] memory,
+            OrderType,
+            uint256
+        ) internal pure inFn
+    ) internal pure returns (
+        function(
+            uint256,
+            OfferItem[] memory,
+            OrderType,
+            uint256
+        ) internal pure outFn
+    ) {
+        assembly {
+            outFn := inFn
         }
     }
 
@@ -215,7 +324,11 @@ contract CriteriaResolution is CriteriaResolutionErrors {
         // If criteria is not 0 (i.e. a collection-wide criteria-based item)...
         if (identifierOrCriteria != uint256(0)) {
             // Verify identifier inclusion in criteria root using proof.
-            _verifyProof(criteriaResolver.identifier, identifierOrCriteria, criteriaResolver.criteriaProof);
+            _verifyProof(
+                criteriaResolver.identifier,
+                identifierOrCriteria,
+                criteriaResolver.criteriaProof
+            );
         } else if (criteriaResolver.criteriaProof.length != 0) {
             // Revert if non-empty proof is supplied for a collection-wide item.
             _revertInvalidProof();
@@ -245,7 +358,11 @@ contract CriteriaResolution is CriteriaResolutionErrors {
      * @return withCriteria A boolean indicating that the item type in question
      *                      represents a criteria-based item.
      */
-    function _isItemWithCriteria(ItemType itemType) internal pure returns (bool withCriteria) {
+    function _isItemWithCriteria(ItemType itemType)
+        internal
+        pure
+        returns (bool withCriteria)
+    {
         // ERC721WithCriteria is ItemType 4. ERC1155WithCriteria is ItemType 5.
         assembly {
             withCriteria := gt(itemType, 3)
@@ -260,7 +377,10 @@ contract CriteriaResolution is CriteriaResolutionErrors {
      * @param root  The merkle root that inclusion will be proved against.
      * @param proof The merkle proof.
      */
-    function _verifyProof(uint256 leaf, uint256 root, bytes32[] memory proof) internal pure {
+    function _verifyProof(uint256 leaf, uint256 root, bytes32[] memory proof)
+        internal
+        pure
+    {
         // Declare a variable that will be used to determine proof validity.
         bool isValid;
 
