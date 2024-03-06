@@ -112,7 +112,7 @@ contract OrderValidator is Executor, ZoneInteraction {
         );
 
         unchecked {
-            // If the order is not already validated, verify the supplied signature.
+            // If the order is not already validated, verify supplied signature.
             if (!orderStatus.isValidated) {
                 _verifySignature(
                     offerer,
@@ -125,8 +125,8 @@ contract OrderValidator is Executor, ZoneInteraction {
                             CalldataPointer
                                 .wrap(BasicOrder_signature_cdPtr)
                                 .readMaskedUint256() +
-                                // Add the BasicOrderParameters struct offset to the
-                                // relative pointer.
+                                // Add the BasicOrderParameters struct offset to
+                                // the relative pointer.
                                 BasicOrder_basicOrderParameters_cd_offset
                         )
                     )
@@ -517,7 +517,7 @@ contract OrderValidator is Executor, ZoneInteraction {
                         out := _a
                     }
 
-                    // Determine the amount to scale down the new filled fraction.
+                    // Determine amount to scale down the new filled fraction.
                     let scaleDown := gcd(filledNumerator, denominator)
 
                     // Ensure that the divisor is at least one.

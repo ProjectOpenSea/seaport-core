@@ -555,11 +555,13 @@ contract ConsiderationEncoder {
 
     /**
      * @dev Takes an order hash and BasicOrderParameters struct (from calldata)
-     *      and encodes it as `authorizeOrder` calldata. Note that memory data is reused
-     *      from `OrderFulfilled` event data, and the rest of the calldata is prefixed and
-     *      postfixed to this memory region. Importantly the memory region before the 
-     *      `OrderFulfilled`'s spent and received items are overwritten to. So this 
-     *      function will need to be modified if the layout of that event data changes.
+     *      and encodes it as `authorizeOrder` calldata. Note that memory data
+     *      is reused from `OrderFulfilled` event data, and the rest of the
+     *      calldata is prefixed and postfixed to this memory region. Note that
+     *      the memory region before the spent and received items on the
+     *      `OrderFulfilled` event are overwritten, which implies that this
+     *      function will need to be modified should the layout of that event
+     *      data change in the future.
      *
      * @param orderHash  The order hash.
      *
