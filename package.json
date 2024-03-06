@@ -1,6 +1,6 @@
 {
   "name": "seaport-core",
-  "version": "1.6.0",
+  "version": "1.6.1",
   "description": "Core smart contracts for the Seaport protocol",
   "main": "src/",
   "repository": "https://github.com/ProjectOpenSea/seaport-core.git",
@@ -14,6 +14,6 @@
     "README.md"
   ],
   "dependencies": {
-    "seaport-types": "^0.0.1"
+    "seaport-types": "github:ProjectOpenSea/seaport-types#d72955b25b6cf324bbf85ed59aca316f5329eb61"
   }
 }
