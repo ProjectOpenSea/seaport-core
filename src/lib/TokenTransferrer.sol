@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.14;
 
 import {
     BadReturnValueFromERC20OnTransfer_error_amount_ptr,
