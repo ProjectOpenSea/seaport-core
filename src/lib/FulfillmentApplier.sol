@@ -253,9 +253,6 @@ contract FulfillmentApplier is FulfillmentApplicationErrors {
                 _revertMissingFulfillmentComponentOnAggregation(side);
             }
 
-            // Retrieve the received item on the execution being returned.
-            ReceivedItem memory item = execution.item;
-
             // If the fulfillment components are offer components...
             if (side == Side.OFFER) {
                 // Return execution for aggregated items provided by offerer.
