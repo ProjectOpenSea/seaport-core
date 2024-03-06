@@ -890,8 +890,8 @@ contract ConsiderationDecoder {
             // 1. offerOffset
             // 2. considerationOffset
             // 3. offerLength & considerationLength might occupy just one word
-            //    if offerOffset & considerationOffset would point to the same offset
-            //    and the arrays have length 0.
+            //    if offerOffset & considerationOffset would point to the same
+            //    offset and the arrays have length 0.
             invalidEncoding := lt(returndatasize(), ThreeWords)
 
             let offsetOffer
@@ -907,7 +907,8 @@ contract ConsiderationDecoder {
                 offsetOffer := mload(0)
                 offsetConsideration := mload(OneWord)
 
-                // If valid length, check that offsets word boundaries are within returndata.
+                // If valid length, check that offsets word boundaries are
+                // within returndata.
                 let invalidOfferOffset :=
                     gt(
                         add(offsetOffer, OneWord), 
@@ -932,7 +933,7 @@ contract ConsiderationDecoder {
                     considerationLength := mload(OneWord)
 
                     {
-                        // Calculate end offsets of offer & consideration arrays.
+                        // Derive end offsets for offer & consideration arrays.
                         let offerEndOffset :=
                             add(
                                 add(offsetOffer, OneWord),

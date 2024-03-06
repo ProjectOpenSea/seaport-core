@@ -218,250 +218,267 @@ contract OrderCombiner is OrderFulfiller, FulfillmentApplier {
         // Ensure this function cannot be triggered during a reentrant call.
         _setReentrancyGuard(true); // Native tokens accepted during execution.
 
-        // Declare an error buffer indicating status of any native offer items.
-        // Native tokens may only be provided as part of contract orders or when
-        // fulfilling via matchOrders or matchAdvancedOrders; if bits indicating
-        // these conditions are not met have been set, throw.
-        uint256 invalidNativeOfferItemErrorBuffer;
-
-        // Use assembly to set the value for the second bit of the error buffer.
-        assembly {
-            /**
-             * Use the 231st bit of the error buffer to indicate whether the
-             * current function is not matchAdvancedOrders or matchOrders.
-             *
-             * sig                                func
-             * -----------------------------------------------------------------
-             * 1010100000010111010001000 0 000100 matchOrders
-             * 1111001011010001001010110 0 010010 matchAdvancedOrders
-             * 1110110110011000101001010 1 110100 fulfillAvailableOrders
-             * 1000011100100000000110110 1 000001 fulfillAvailableAdvancedOrders
-             *                           ^ 7th bit
-             */
-            invalidNativeOfferItemErrorBuffer :=
-                and(NonMatchSelector_MagicMask, calldataload(0))
-        }
-
         // Declare "terminal memory offset" variable for use in efficient loops.
         uint256 terminalMemoryOffset;
 
-        unchecked {
-            // Read length of orders array and place on the stack.
-            uint256 totalOrders = advancedOrders.length;
+        {
+            // Declare an error buffer indicating status of any native offer
+            // items. Native tokens may only be provided as part of contract
+            // orders or when fulfilling via matchOrders or matchAdvancedOrders;
+            // throw if bits indicating the conditions aren't met have been set.
+            uint256 invalidNativeOfferItemErrorBuffer;
 
-            // Track the order hash for each order being fulfilled.
-            orderHashes = new bytes32[](totalOrders);
+            // Use assembly to set the value for the second bit of error buffer.
+            assembly {
+                /**
+                 * Use the 231st bit of the error buffer to indicate whether the
+                 * current function is not matchAdvancedOrders or matchOrders.
+                 *
+                 * sig                                func
+                 * -------------------------------------------------------------
+                 * 1010100000010111010001000 0 000100 matchOrders
+                 * 1111001011010001001010110 0 010010 matchAdvancedOrders
+                 * 1110110110011000101001010 1 110100 fulfillAvailableOrders
+                 * 1000011100100000000110110 1 000001 fulfillAvailableAdvanced
+                 *                           ^ 7th bit
+                 */
+                invalidNativeOfferItemErrorBuffer :=
+                    and(NonMatchSelector_MagicMask, calldataload(0))
+            }
 
-            // Determine the memory offset to terminate on during loops.
-            terminalMemoryOffset = (totalOrders + 1) << OneWordShift;
-        }
+            unchecked {
+                // Read length of orders array and place on the stack.
+                uint256 totalOrders = advancedOrders.length;
 
-        // Skip overflow checks as all for loops are indexed starting at zero.
-        unchecked {
-            // Declare variable to track if an order is not a contract order.
-            bool isNonContract;
+                // Track the order hash for each order being fulfilled.
+                orderHashes = new bytes32[](totalOrders);
 
-            // Iterate over each order.
-            for (uint256 i = OneWord; i < terminalMemoryOffset; i += OneWord) {
-                // Retrieve order using pointer libraries to bypass out-of-range
-                // check & cast function to avoid additional memory allocation.
-                AdvancedOrder memory advancedOrder = (
-                    _getReadAdvancedOrderByOffset()(advancedOrders, i)
-                );
+                // Determine the memory offset to terminate on during loops.
+                terminalMemoryOffset = (totalOrders + 1) << OneWordShift;
+            }
 
-                // Validate it, update status, and determine fraction to fill.
-                (bytes32 orderHash, uint256 numerator, uint256 denominator) =
-                _validateOrder(advancedOrder, revertOnInvalid);
+            // Skip overflow checks as for loops are indexed starting at zero.
+            unchecked {
+                // Declare variable to track if order is not a contract order.
+                bool isNonContract;
 
-                advancedOrder.numerator = uint120(numerator);
+                // Iterate over each order.
+                for (
+                    uint256 i = OneWord;
+                    i < terminalMemoryOffset;
+                    i += OneWord
+                ) {
+                    // Retrieve order via pointer to bypass out-of-range check &
+                    // cast function to avoid additional memory allocation.
+                    AdvancedOrder memory advancedOrder = (
+                        _getReadAdvancedOrderByOffset()(advancedOrders, i)
+                    );
 
-                // Do not track hash or adjust prices if order is not fulfilled.
-                if (numerator == 0) {
-                    // Continue iterating through the remaining orders.
-                    continue;
-                }
+                    // Validate it, update status, & determine fraction to fill.
+                    (
+                        bytes32 orderHash,
+                        uint256 numerator,
+                        uint256 denominator
+                    ) = _validateOrder(advancedOrder, revertOnInvalid);
 
-                advancedOrder.denominator = uint120(denominator);
+                    // Update the numerator on the order in question.
+                    advancedOrder.numerator = uint120(numerator);
 
-                // Otherwise, track the order hash in question.
-                assembly {
-                    mstore(add(orderHashes, i), orderHash)
-                }
-
-                // Place the start time for the order on the stack.
-                uint256 startTime = advancedOrder.parameters.startTime;
-
-                // Place the end time for the order on the stack.
-                uint256 endTime = advancedOrder.parameters.endTime;
-
-                {
-                    // Determine the order type, used to check for eligibility
-                    // for native token offer items as well as for the presence
-                    // of restricted and contract orders (or non-open orders).
-                    OrderType orderType = advancedOrder.parameters.orderType;
-
-                    // Utilize assembly to efficiently check for order types.
-                    // Note that these checks expect that there are no order
-                    // types beyond the current set (0-4) and will need to be
-                    // modified if more order types are added.
-                    assembly {
-                        // Assign the variable indicating if the order is not a
-                        // contract order.
-                        isNonContract := lt(orderType, 4)
-
-                        // Update the variable indicating if the order is not an
-                        // open order, remaining set if it has been set already.
-                        containsNonOpen := or(containsNonOpen, gt(orderType, 1))
+                    // Do not track hash or adjust prices if order is skipped.
+                    if (numerator == 0) {
+                        // Continue iterating through the remaining orders.
+                        continue;
                     }
-                }
 
-                // Retrieve array of offer items for the order in question.
-                OfferItem[] memory offer = advancedOrder.parameters.offer;
+                    // Update the denominator on the order in question.
+                    advancedOrder.denominator = uint120(denominator);
 
-                // Read length of offer array and place on the stack.
-                uint256 totalOfferItems = offer.length;
-
-                // Iterate over each offer item on the order.
-                for (uint256 j = 0; j < totalOfferItems; ++j) {
-                    // Retrieve the offer item.
-                    OfferItem memory offerItem = offer[j];
-
-                    // If the offer item is for the native token and the order
-                    // type is not a contract order type, set the first bit of
-                    // the error buffer to true.
+                    // Otherwise, track the order hash in question.
                     assembly {
-                        invalidNativeOfferItemErrorBuffer :=
-                            or(
-                                invalidNativeOfferItemErrorBuffer,
-                                lt(mload(offerItem), isNonContract)
+                        mstore(add(orderHashes, i), orderHash)
+                    }
+
+                    // Place the start time for the order on the stack.
+                    uint256 startTime = advancedOrder.parameters.startTime;
+
+                    // Place the end time for the order on the stack.
+                    uint256 endTime = advancedOrder.parameters.endTime;
+
+                    {
+                        // Determine order type, used to check for eligibility
+                        // for native token offer items as well as for presence
+                        // of restricted and contract orders or non-open orders.
+                        OrderType orderType = (
+                            advancedOrder.parameters.orderType
+                        );
+
+                        // Utilize assembly to efficiently check order types.
+                        // Note these checks expect that there are no order
+                        // types beyond current set (0-4) and will need to be
+                        // modified if more order types are added.
+                        assembly {
+                            // Assign the variable indicating if the order is
+                            // not a contract order.
+                            isNonContract := lt(orderType, 4)
+
+                            // Update the variable indicating if order is not an
+                            // open order & keep set if it has been set already.
+                            containsNonOpen := or(
+                                containsNonOpen,
+                                gt(orderType, 1)
                             )
+                        }
                     }
 
-                    // Apply order fill fraction to offer item end amount.
-                    uint256 endAmount = _getFraction(
-                        numerator, denominator, offerItem.endAmount
-                    );
+                    // Retrieve array of offer items for the order in question.
+                    OfferItem[] memory offer = advancedOrder.parameters.offer;
 
-                    // Reuse same fraction if start and end amounts are equal.
-                    if (offerItem.startAmount == offerItem.endAmount) {
-                        // Apply derived amount to both start and end amount.
-                        offerItem.startAmount = endAmount;
-                    } else {
-                        // Apply order fill fraction to offer item start amount.
-                        offerItem.startAmount = _getFraction(
-                            numerator, denominator, offerItem.startAmount
+                    // Read length of offer array and place on the stack.
+                    uint256 totalOfferItems = offer.length;
+
+                    // Iterate over each offer item on the order.
+                    for (uint256 j = 0; j < totalOfferItems; ++j) {
+                        // Retrieve the offer item.
+                        OfferItem memory offerItem = offer[j];
+
+                        // If the offer item is for the native token and the
+                        // order type is not a contract order type, set the
+                        // first bit of the error buffer to true.
+                        assembly {
+                            invalidNativeOfferItemErrorBuffer :=
+                                or(
+                                    invalidNativeOfferItemErrorBuffer,
+                                    lt(mload(offerItem), isNonContract)
+                                )
+                        }
+
+                        // Apply order fill fraction to offer item end amount.
+                        uint256 endAmount = _getFraction(
+                            numerator, denominator, offerItem.endAmount
                         );
-                    }
 
-                    // Adjust offer amount using current time; round down.
-                    uint256 currentAmount = _locateCurrentAmount(
-                        offerItem.startAmount,
-                        endAmount,
-                        startTime,
-                        endTime,
-                        _runTimeConstantFalse() // round down
-                    );
+                        // Reuse same fraction if start & end amounts are equal.
+                        if (offerItem.startAmount == offerItem.endAmount) {
+                            // Apply derived amount to both start & end amount.
+                            offerItem.startAmount = endAmount;
+                        } else {
+                            // Apply order fill fraction to item start amount.
+                            offerItem.startAmount = _getFraction(
+                                numerator, denominator, offerItem.startAmount
+                            );
+                        }
 
-                    // Update amounts in memory to match the current amount.
-                    // Note that the end amount is used to track spent amounts.
-                    offerItem.startAmount = currentAmount;
-                    offerItem.endAmount = currentAmount;
-                }
-
-                // Retrieve array of consideration items for order in question.
-                ConsiderationItem[] memory consideration = (
-                    advancedOrder.parameters.consideration
-                );
-
-                // Read length of consideration array and place on the stack.
-                uint256 totalConsiderationItems = consideration.length;
-
-                // Iterate over each consideration item on the order.
-                for (uint256 j = 0; j < totalConsiderationItems; ++j) {
-                    // Retrieve the consideration item.
-                    ConsiderationItem memory considerationItem =
-                        (consideration[j]);
-
-                    // Apply fraction to consideration item end amount.
-                    uint256 endAmount = _getFraction(
-                        numerator, denominator, considerationItem.endAmount
-                    );
-
-                    // Reuse same fraction if start and end amounts are equal.
-                    if (
-                        considerationItem.startAmount
-                            == considerationItem.endAmount
-                    ) {
-                        // Apply derived amount to both start and end amount.
-                        considerationItem.startAmount = endAmount;
-                    } else {
-                        // Apply fraction to consideration item start amount.
-                        considerationItem.startAmount = _getFraction(
-                            numerator,
-                            denominator,
-                            considerationItem.startAmount
-                        );
-                    }
-
-                    // Adjust consideration amount using current time; round up.
-                    uint256 currentAmount = (
-                        _locateCurrentAmount(
-                            considerationItem.startAmount,
+                        // Adjust offer amount using current time; round down.
+                        uint256 currentAmount = _locateCurrentAmount(
+                            offerItem.startAmount,
                             endAmount,
                             startTime,
                             endTime,
-                            _runTimeConstantTrue() // round up
-                        )
+                            _runTimeConstantFalse() // round down
+                        );
+
+                        // Update amounts in memory to match the current amount.
+                        // Note the end amount is used to track spent amounts.
+                        offerItem.startAmount = currentAmount;
+                        offerItem.endAmount = currentAmount;
+                    }
+
+                    // Retrieve consideration item array for order in question.
+                    ConsiderationItem[] memory consideration = (
+                        advancedOrder.parameters.consideration
                     );
 
-                    // Set the start amount as equal to the current amount.
-                    considerationItem.startAmount = currentAmount;
+                    // Read length of consideration array and place on stack.
+                    uint256 totalConsiderationItems = consideration.length;
 
-                    // Utilize assembly to manually "shift" the recipient value,
-                    // then to copy the start amount to the recipient.
-                    // Note that this sets up the memory layout that is
-                    // subsequently relied upon by
-                    // _aggregateValidFulfillmentConsiderationItems as well as
-                    // during comparison against generated contract orders.
-                    assembly {
-                        // Derive the pointer to the recipient using the item
-                        // pointer along with the offset to the recipient.
-                        let considerationItemRecipientPtr :=
-                            add(
-                                considerationItem,
-                                ConsiderationItem_recipient_offset // recipient
+                    // Iterate over each consideration item on the order.
+                    for (uint256 j = 0; j < totalConsiderationItems; ++j) {
+                        // Retrieve the consideration item.
+                        ConsiderationItem memory considerationItem =
+                            (consideration[j]);
+
+                        // Apply fraction to consideration item end amount.
+                        uint256 endAmount = _getFraction(
+                            numerator, denominator, considerationItem.endAmount
+                        );
+
+                        // Reuse same fraction if start & end amounts are equal.
+                        if (
+                            considerationItem.startAmount
+                                == considerationItem.endAmount
+                        ) {
+                            // Apply derived amount to both start & end amount.
+                            considerationItem.startAmount = endAmount;
+                        } else {
+                            // Apply fraction to item start amount.
+                            considerationItem.startAmount = _getFraction(
+                                numerator,
+                                denominator,
+                                considerationItem.startAmount
+                            );
+                        }
+
+                        // Adjust amount using current time; round up.
+                        uint256 currentAmount = (
+                            _locateCurrentAmount(
+                                considerationItem.startAmount,
+                                endAmount,
+                                startTime,
+                                endTime,
+                                _runTimeConstantTrue() // round up
+                            )
+                        );
+
+                        // Set the start amount as equal to the current amount.
+                        considerationItem.startAmount = currentAmount;
+
+                        // Utilize assembly to manually "shift" the recipient
+                        // value, then copy the start amount to the recipient.
+                        // Note that this sets up the memory layout that is
+                        // subsequently relied upon by
+                        // _aggregateValidFulfillmentConsiderationItems as well
+                        // as during comparison to generated contract orders.
+                        assembly {
+                            // Derive pointer to the recipient using the item
+                            // pointer along with the offset to the recipient.
+                            let considerationItemRecipientPtr :=
+                                add(
+                                    considerationItem,
+                                    ConsiderationItem_recipient_offset
+                                )
+
+                            // Write recipient to endAmount, as endAmount is not
+                            // used from this point on and can be repurposed to
+                            // fit the layout of a ReceivedItem.
+                            mstore(
+                                add(
+                                    considerationItem,
+                                    // Note that this value used to be endAmount
+                                    ReceivedItem_recipient_offset
+                                ),
+                                mload(considerationItemRecipientPtr)
                             )
 
-                        // Write recipient to endAmount, as endAmount is not
-                        // used from this point on and can be repurposed to fit
-                        // the layout of a ReceivedItem.
-                        mstore(
-                            add(
-                                considerationItem,
-                                ReceivedItem_recipient_offset // old endAmount
-                            ),
-                            mload(considerationItemRecipientPtr)
-                        )
-
-                        // Write startAmount to recipient, as recipient is not
-                        // used from this point on and can be repurposed to
-                        // track received amounts.
-                        mstore(considerationItemRecipientPtr, currentAmount)
+                            // Write startAmount to recipient, as recipient is
+                            // not used from this point on and can be repurposed
+                            // to track received amounts.
+                            mstore(considerationItemRecipientPtr, currentAmount)
+                        }
                     }
                 }
             }
-        }
 
-        // If the first bit is set, a native offer item was encountered on an
-        // order that is not a contract order. If the 231st bit is set in the
-        // error buffer, the current function is not matchOrders or
-        // matchAdvancedOrders. If the value is 1 + (1 << 230), then both the
-        // 1st and 231st bits were set; in that case, revert with an error.
-        if (
-            invalidNativeOfferItemErrorBuffer
-                == NonMatchSelector_InvalidErrorValue
-        ) {
-            _revertInvalidNativeOfferItem();
+            // If the first bit is set, a native offer item was encountered on
+            // an order that is not a contract order. If the 231st bit is set in
+            // the error buffer, the current function is not matchOrders or
+            // matchAdvancedOrders. If the value is 1 + (1 << 230), then both
+            // 1st and 231st bits were set; in that case, revert with an error.
+            if (
+                invalidNativeOfferItemErrorBuffer
+                    == NonMatchSelector_InvalidErrorValue
+            ) {
+                _revertInvalidNativeOfferItem();
+            }
         }
 
         // Apply criteria resolvers to each order as applicable.
@@ -474,6 +491,9 @@ contract OrderCombiner is OrderFulfiller, FulfillmentApplier {
         unchecked {
             // Declare stack variable outside of the loop to track order hash.
             bytes32 orderHash;
+
+            // Track whether any orders are still available for fulfillment.
+            bool someOrderAvailable = false;
 
             // Iterate over each order.
             for (uint256 i = OneWord; i < terminalMemoryOffset; i += OneWord) {
@@ -595,6 +615,14 @@ contract OrderCombiner is OrderFulfiller, FulfillmentApplier {
                     orderParameters.offer,
                     orderParameters.consideration
                 );
+
+                // Set the flag indicating that some order is available.
+                someOrderAvailable = true;
+            }
+
+            // Revert if no orders are available.
+            if (!someOrderAvailable) {
+                _revertNoSpecifiedOrdersAvailable();
             }
         }
     }
@@ -682,73 +710,31 @@ contract OrderCombiner is OrderFulfiller, FulfillmentApplier {
 
         // Skip overflow checks as all for loops are indexed starting at zero.
         unchecked {
-            // Track number of filtered executions.
-            uint256 totalFilteredExecutions = 0;
-
             // Iterate over each offer fulfillment.
-            for (uint256 i = 0; i < totalOfferFulfillments;) {
-                // Derive aggregated execution corresponding with fulfillment.
-                Execution memory execution = _aggregateAvailable(
+            for (uint256 i = 0; i < totalOfferFulfillments; ++i) {
+                // Derive aggregated execution corresponding with fulfillment
+                // and assign it to the executions array.
+                executions[i] = _aggregateAvailable(
                     advancedOrders,
                     Side.OFFER,
                     offerFulfillments[i],
                     fulfillerConduitKey,
                     recipient
                 );
-
-                // If the execution is filterable...
-                if (_isFilterableExecution(execution)) {
-                    // Increment total filtered executions.
-                    ++totalFilteredExecutions;
-                } else {
-                    // Otherwise, assign the execution to the executions array.
-                    executions[i - totalFilteredExecutions] = execution;
-                }
-
-                // Increment iterator.
-                ++i;
             }
 
             // Iterate over each consideration fulfillment.
-            for (uint256 i = 0; i < totalConsiderationFulfillments;) {
-                // Derive aggregated execution corresponding with fulfillment.
-                Execution memory execution = _aggregateAvailable(
+            for (uint256 i = 0; i < totalConsiderationFulfillments; ++i) {
+                // Derive aggregated execution corresponding with fulfillment
+                // and assign it to the executions array.
+                executions[i + totalOfferFulfillments] = _aggregateAvailable(
                     advancedOrders,
                     Side.CONSIDERATION,
                     considerationFulfillments[i],
                     fulfillerConduitKey,
                     address(0) // unused
                 );
-
-                // If the execution is filterable...
-                if (_isFilterableExecution(execution)) {
-                    // Increment total filtered executions.
-                    ++totalFilteredExecutions;
-                } else {
-                    // Otherwise, assign the execution to the executions array.
-                    executions[i + totalOfferFulfillments
-                        - totalFilteredExecutions] = execution;
-                }
-
-                // Increment iterator.
-                ++i;
             }
-
-            // If some number of executions have been filtered...
-            if (totalFilteredExecutions != 0) {
-                // reduce the total length of the executions array.
-                assembly {
-                    mstore(
-                        executions,
-                        sub(mload(executions), totalFilteredExecutions)
-                    )
-                }
-            }
-        }
-
-        // Revert if no orders are available.
-        if (executions.length == 0) {
-            _revertNoSpecifiedOrdersAvailable();
         }
 
         // Perform final checks and return.
@@ -815,46 +801,49 @@ contract OrderCombiner is OrderFulfiller, FulfillmentApplier {
                     _getReadExecutionByOffset()(executions, i)
                 );
 
-                // Retrieve the associated received item.
+                // Retrieve the associated received item and amount.
                 ReceivedItem memory item = execution.item;
+                uint256 amount = item.amount;
 
-                // If execution transfers native tokens, check available value.
-                assembly {
-                    // Ensure sufficient available balance for native transfers.
-                    if and(
-                        iszero(mload(item)), // itemType == ItemType.NATIVE
-                        // item.amount > address(this).balance
-                        gt(
-                            mload(
-                                add(
-                                    item,
-                                    ReceivedItem_amount_offset
-                                )
-                            ),
-                            selfbalance()
-                        )
-                    ) {
-                        // Store left-padded selector with push4,
-                        // mem[28:32] = selector
-                        mstore(
-                            0,
-                            InsufficientNativeTokensSupplied_error_selector
-                        )
+                // Transfer the item specified by the execution as long as the
+                // execution is not a zero-amount execution (which can occur if
+                // the corresponding fulfillment contained only items on orders
+                // that are unavailable or are out of range of the respective
+                // item array).
+                if (amount != 0) {
+                    // Utilize assembly to check for native token balance.
+                    assembly {
+                        // Ensure a sufficient native balance if relevant.
+                        if and(
+                            iszero(mload(item)), // itemType == ItemType.NATIVE
+                            // item.amount > address(this).balance
+                            gt(amount, selfbalance())
+                        ) {
+                            // Store left-padded selector with push4,
+                            // mem[28:32] = selector
+                            mstore(
+                                0,
+                                InsufficientNativeTokensSupplied_error_selector
+                            )
 
-                        // revert(abi.encodeWithSignature(
-                        //   "InsufficientNativeTokensSupplied()"
-                        // ))
-                        revert(
-                            Error_selector_offset,
-                            InsufficientNativeTokensSupplied_error_length
-                        )
+                            // revert(abi.encodeWithSignature(
+                            //   "InsufficientNativeTokensSupplied()"
+                            // ))
+                            revert(
+                                Error_selector_offset,
+                                InsufficientNativeTokensSupplied_error_length
+                            )
+                        }
                     }
-                }
 
-                // Transfer the item specified by the execution.
-                _transfer(
-                    item, execution.offerer, execution.conduitKey, accumulator
-                );
+                    // Transfer the item specified by the execution.
+                    _transfer(
+                        item,
+                        execution.offerer,
+                        execution.conduitKey,
+                        accumulator
+                    );
+                }
             }
         }
 
@@ -1159,41 +1148,19 @@ contract OrderCombiner is OrderFulfiller, FulfillmentApplier {
 
         // Skip overflow checks as all for loops are indexed starting at zero.
         unchecked {
-            // Track number of filtered executions.
-            uint256 totalFilteredExecutions = 0;
-
             // Iterate over each fulfillment.
             for (uint256 i = 0; i < totalFulfillments; ++i) {
                 /// Retrieve the fulfillment in question.
                 Fulfillment memory fulfillment = fulfillments[i];
 
-                // Derive the execution corresponding with the fulfillment.
-                Execution memory execution = _applyFulfillment(
+                // Derive the execution corresponding with the fulfillment and
+                // assign it to the executions array.
+                executions[i] = _applyFulfillment(
                     advancedOrders,
                     fulfillment.offerComponents,
                     fulfillment.considerationComponents,
                     i
                 );
-
-                // If the execution is filterable...
-                if (_isFilterableExecution(execution)) {
-                    // Increment total filtered executions.
-                    ++totalFilteredExecutions;
-                } else {
-                    // Otherwise, assign the execution to the executions array.
-                    executions[i - totalFilteredExecutions] = execution;
-                }
-            }
-
-            // If some number of executions have been filtered...
-            if (totalFilteredExecutions != 0) {
-                // reduce the total length of the executions array.
-                assembly {
-                    mstore(
-                        executions,
-                        sub(mload(executions), totalFilteredExecutions)
-                    )
-                }
             }
         }
 
@@ -1204,45 +1171,6 @@ contract OrderCombiner is OrderFulfiller, FulfillmentApplier {
 
         // Return the executions array.
         return executions;
-    }
-
-    /**
-     * @dev Internal pure function to determine whether a given execution is
-     *      filterable and may be removed from the executions array. The offerer
-     *      and the recipient must be the same address and the item type cannot
-     *      indicate a native token transfer.
-     *
-     * @param execution The execution to check for filterability.
-     *
-     * @return filterable A boolean indicating whether the execution in question
-     *                    can be filtered from the executions array.
-     */
-    function _isFilterableExecution(Execution memory execution)
-        internal
-        pure
-        returns (bool filterable)
-    {
-        // Utilize assembly to efficiently determine if execution is filterable.
-        assembly {
-            // Retrieve the received item referenced by the execution.
-            let item := mload(execution)
-
-            // Determine whether the execution is filterable.
-            filterable :=
-                and(
-                    // Determine if offerer and recipient are the same address.
-                    eq(
-                        // Retrieve recipient's address from the received item.
-                        mload(add(item, ReceivedItem_recipient_offset)),
-                        // Retrieve the offerer's address from the execution.
-                        mload(add(execution, Execution_offerer_offset))
-                    ),
-                    // Determine if received item's item type is non-zero,
-                    // thereby indicating that the execution does not involve
-                    // native tokens.
-                    iszero(iszero(mload(item)))
-                )
-        }
     }
 
     /**

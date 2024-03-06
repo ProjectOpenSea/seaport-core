@@ -91,9 +91,9 @@ import {
     OrderFulfilled_offer_body_offset,
     OrderFulfilled_offer_head_offset,
     OrderFulfilled_offer_length_baseOffset,
-    OrderFulfilled_offer_length_baseOffset_relativeTo_OrderFulfilled_baseOffset,
-    OrderFulfilled_offer_itemType_baseOffset_relativeTo_OrderFulfilled_baseOffset,
-    OrderFulfilled_offer_token_baseOffset_relativeTo_OrderFulfilled_baseOffset,
+    OrderFulfilled_offer_length_offset_relativeTo_baseOffset,
+    OrderFulfilled_offer_itemType_offset_relativeTo_baseOffset,
+    OrderFulfilled_offer_token_offset_relativeTo_baseOffset,
     OrderFulfilled_post_memory_region_reservedBytes,
     OrderFulfilled_selector,
     ReceivedItem_amount_offset,
@@ -1012,7 +1012,7 @@ contract BasicOrderFulfiller is OrderValidator {
             mstore(
                 add(
                     eventDataPtr,
-                    OrderFulfilled_offer_length_baseOffset_relativeTo_OrderFulfilled_baseOffset
+                    OrderFulfilled_offer_length_offset_relativeTo_baseOffset
                 ),
                 1
             )
@@ -1021,7 +1021,7 @@ contract BasicOrderFulfiller is OrderValidator {
             mstore(
                 add(
                     eventDataPtr,
-                    OrderFulfilled_offer_itemType_baseOffset_relativeTo_OrderFulfilled_baseOffset
+                    OrderFulfilled_offer_itemType_offset_relativeTo_baseOffset
                 ),
                 offeredItemType
             )
@@ -1032,7 +1032,7 @@ contract BasicOrderFulfiller is OrderValidator {
             calldatacopy(
                 add(
                     eventDataPtr,
-                    OrderFulfilled_offer_token_baseOffset_relativeTo_OrderFulfilled_baseOffset
+                    OrderFulfilled_offer_token_offset_relativeTo_baseOffset
                 ),
                 BasicOrder_offerToken_cdPtr,
                 ThreeWords
@@ -1074,11 +1074,14 @@ contract BasicOrderFulfiller is OrderValidator {
             mstore(FreeMemoryPointerSlot, 
                 add(
                     eventDataPtr, 
-                    // reserve extra 3 words to be used by `authorizeOrder` and
-                    // `validatateOrder` if pre-post exection hook to the zone is
-                    // required. These 3 memory slots will be used for the extra data/context
-                    // and order hashes of the calldata.
-                    add(dataSize, OrderFulfilled_post_memory_region_reservedBytes)
+                    // Reserve extra 3 words to be used by `authorizeOrder` and
+                    // `validatateOrder` if pre-post exection hook to the zone
+                    // is required. These 3 memory slots will be used for the
+                    // extra data/context and order hashes of the calldata.
+                    add(
+                        dataSize,
+                        OrderFulfilled_post_memory_region_reservedBytes
+                    )
                 )
             )
         }
