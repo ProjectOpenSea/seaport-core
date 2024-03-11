@@ -14,6 +14,6 @@
     "README.md"
   ],
   "dependencies": {
-    "seaport-types": "1.6.1"
+    "seaport-types": "1.6.2"
   }
 }
