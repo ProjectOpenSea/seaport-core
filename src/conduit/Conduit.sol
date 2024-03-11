@@ -105,17 +105,14 @@ contract Conduit is ConduitInterface, TokenTransferrer {
      * @return magicValue A magic value indicating that the transfers were
      *                    performed successfully.
      */
-    function execute(ConduitTransfer[] calldata transfers)
-        external
-        override
-        onlyOpenChannel
-        returns (bytes4 magicValue)
-    {
+    function execute(
+        ConduitTransfer[] calldata transfers
+    ) external override onlyOpenChannel returns (bytes4 magicValue) {
         // Retrieve the total number of transfers and place on the stack.
         uint256 totalStandardTransfers = transfers.length;
 
         // Iterate over each transfer.
-        for (uint256 i = 0; i < totalStandardTransfers;) {
+        for (uint256 i = 0; i < totalStandardTransfers; ) {
             // Retrieve the transfer in question and perform the transfer.
             _transfer(transfers[i]);
 
@@ -178,7 +175,7 @@ contract Conduit is ConduitInterface, TokenTransferrer {
         uint256 totalStandardTransfers = standardTransfers.length;
 
         // Iterate over each standard transfer.
-        for (uint256 i = 0; i < totalStandardTransfers;) {
+        for (uint256 i = 0; i < totalStandardTransfers; ) {
             // Retrieve the transfer in question and perform the transfer.
             _transfer(standardTransfers[i]);
 
@@ -244,12 +241,19 @@ contract Conduit is ConduitInterface, TokenTransferrer {
 
             // Transfer ERC721 token.
             _performERC721Transfer(
-                item.token, item.from, item.to, item.identifier
+                item.token,
+                item.from,
+                item.to,
+                item.identifier
             );
         } else if (item.itemType == ConduitItemType.ERC1155) {
             // Transfer ERC1155 token.
             _performERC1155Transfer(
-                item.token, item.from, item.to, item.identifier, item.amount
+                item.token,
+                item.from,
+                item.to,
+                item.identifier,
+                item.amount
             );
         } else {
             // Throw with an error.

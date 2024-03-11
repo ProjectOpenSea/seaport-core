@@ -41,37 +41,37 @@ contract LowLevelHelpers {
                 // Ensure that sufficient gas is available to copy returndata
                 // while expanding memory where necessary. Start by computing
                 // the word size of returndata and allocated memory.
-                let returnDataWords :=
-                    shr(OneWordShift, add(returndatasize(), ThirtyOneBytes))
+                let returnDataWords := shr(
+                    OneWordShift,
+                    add(returndatasize(), ThirtyOneBytes)
+                )
 
                 // Note: use the free memory pointer in place of msize() to work
                 // around a Yul warning that prevents accessing msize directly
                 // when the IR pipeline is activated.
-                let msizeWords :=
-                    shr(OneWordShift, mload(FreeMemoryPointerSlot))
+                let msizeWords := shr(
+                    OneWordShift,
+                    mload(FreeMemoryPointerSlot)
+                )
 
                 // Next, compute the cost of the returndatacopy.
                 let cost := mul(CostPerWord, returnDataWords)
 
                 // Then, compute cost of new memory allocation.
                 if gt(returnDataWords, msizeWords) {
-                    cost :=
+                    cost := add(
+                        cost,
                         add(
-                            cost,
-                            add(
-                                mul(
-                                    sub(returnDataWords, msizeWords),
-                                    CostPerWord
-                                ),
-                                shr(
-                                    MemoryExpansionCoefficientShift,
-                                    sub(
-                                        mul(returnDataWords, returnDataWords),
-                                        mul(msizeWords, msizeWords)
-                                    )
+                            mul(sub(returnDataWords, msizeWords), CostPerWord),
+                            shr(
+                                MemoryExpansionCoefficientShift,
+                                sub(
+                                    mul(returnDataWords, returnDataWords),
+                                    mul(msizeWords, msizeWords)
                                 )
                             )
                         )
+                    )
                 }
 
                 // Finally, add a small constant and compare to gas remaining;
@@ -96,11 +96,9 @@ contract LowLevelHelpers {
      *
      * @return updatedRecipient The updated recipient.
      */
-    function _substituteCallerForEmptyRecipient(address recipient)
-        internal
-        view
-        returns (address updatedRecipient)
-    {
+    function _substituteCallerForEmptyRecipient(
+        address recipient
+    ) internal view returns (address updatedRecipient) {
         // Utilize assembly to perform a branchless operation on the recipient.
         assembly {
             // Add caller to recipient if recipient equals 0; otherwise add 0.
@@ -128,19 +126,20 @@ contract LowLevelHelpers {
      *      `AdvancedOrder` whose pointer is stored at that offset from the
      *      array length.
      */
-    function _getReadAdvancedOrderByOffset(
-    ) internal pure returns (
-        function (
-            AdvancedOrder[] memory,
-            uint256
-        ) internal pure returns (AdvancedOrder memory) fn2
-    ) {
-        function (
-            MemoryPointer,
-            uint256
-        ) internal pure returns (
-            MemoryPointer
-        ) fn1 = MemoryPointerLib.pptrOffset;
+    function _getReadAdvancedOrderByOffset()
+        internal
+        pure
+        returns (
+            function(AdvancedOrder[] memory, uint256)
+                internal
+                pure
+                returns (AdvancedOrder memory) fn2
+        )
+    {
+        function(MemoryPointer, uint256)
+            internal
+            pure
+            returns (MemoryPointer) fn1 = MemoryPointerLib.pptrOffset;
 
         assembly {
             fn2 := fn1
@@ -154,19 +153,20 @@ contract LowLevelHelpers {
      *      `Execution` whose pointer is stored at that offset from the
      *      array length.
      */
-    function _getReadExecutionByOffset(
-    ) internal pure returns (
-        function (
-            Execution[] memory,
-            uint256
-        ) internal pure returns (Execution memory) fn2
-    ) {
-        function (
-            MemoryPointer,
-            uint256
-        ) internal pure returns (
-            MemoryPointer
-        ) fn1 = MemoryPointerLib.pptrOffset;
+    function _getReadExecutionByOffset()
+        internal
+        pure
+        returns (
+            function(Execution[] memory, uint256)
+                internal
+                pure
+                returns (Execution memory) fn2
+        )
+    {
+        function(MemoryPointer, uint256)
+            internal
+            pure
+            returns (MemoryPointer) fn1 = MemoryPointerLib.pptrOffset;
 
         assembly {
             fn2 := fn1

@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import { ConduitInterface } from
-    "seaport-types/src/interfaces/ConduitInterface.sol";
+import {
+    ConduitInterface
+} from "seaport-types/src/interfaces/ConduitInterface.sol";
 
 import {
     ConduitItemType
@@ -66,7 +67,7 @@ contract Executor is Verifiers, TokenTransferrer {
      *                          that may optionally be used to transfer approved
      *                          ERC20/721/1155 tokens.
      */
-    constructor(address conduitController) Verifiers(conduitController) { }
+    constructor(address conduitController) Verifiers(conduitController) {}
 
     /**
      * @dev Internal function to transfer a given item, either directly or via
@@ -144,9 +145,10 @@ contract Executor is Verifiers, TokenTransferrer {
      * @param to     The recipient of the transfer.
      * @param amount The amount to transfer.
      */
-    function _transferNativeTokens(address payable to, uint256 amount)
-        internal
-    {
+    function _transferNativeTokens(
+        address payable to,
+        uint256 amount
+    ) internal {
         // Ensure that the supplied amount is non-zero.
         _assertNonZeroAmount(amount);
 
@@ -171,7 +173,8 @@ contract Executor is Verifiers, TokenTransferrer {
                 // Write `to` and `amount` arguments.
                 mstore(NativeTokenTransferGenericFailure_error_account_ptr, to)
                 mstore(
-                    NativeTokenTransferGenericFailure_error_amount_ptr, amount
+                    NativeTokenTransferGenericFailure_error_amount_ptr,
+                    amount
                 )
 
                 // revert(abi.encodeWithSignature(
@@ -411,14 +414,13 @@ contract Executor is Verifiers, TokenTransferrer {
             callDataOffset := add(accumulator, TwoWords)
 
             // 68 + items * 192
-            callDataSize :=
-                add(
-                    Accumulator_array_offset_ptr,
-                    mul(
-                        mload(add(accumulator, Accumulator_array_length_ptr)),
-                        Conduit_transferItem_size
-                    )
+            callDataSize := add(
+                Accumulator_array_offset_ptr,
+                mul(
+                    mload(add(accumulator, Accumulator_array_length_ptr)),
+                    Conduit_transferItem_size
                 )
+            )
         }
 
         // Call conduit derived from conduit key & supply accumulated transfers.
@@ -498,15 +500,14 @@ contract Executor is Verifiers, TokenTransferrer {
      * @return accumulatorConduitKey The conduit key currently set for the
      *                               accumulator.
      */
-    function _getAccumulatorConduitKey(bytes memory accumulator)
-        internal
-        pure
-        returns (bytes32 accumulatorConduitKey)
-    {
+    function _getAccumulatorConduitKey(
+        bytes memory accumulator
+    ) internal pure returns (bytes32 accumulatorConduitKey) {
         // Retrieve the current conduit key from the accumulator.
         assembly {
-            accumulatorConduitKey :=
-                mload(add(accumulator, Accumulator_conduitKey_ptr))
+            accumulatorConduitKey := mload(
+                add(accumulator, Accumulator_conduitKey_ptr)
+            )
         }
     }
 
@@ -567,11 +568,10 @@ contract Executor is Verifiers, TokenTransferrer {
 
         // Insert the item.
         assembly {
-            let itemPointer :=
-                sub(
-                    add(accumulator, mul(elements, Conduit_transferItem_size)),
-                    Accumulator_itemSizeOffsetDifference
-                )
+            let itemPointer := sub(
+                add(accumulator, mul(elements, Conduit_transferItem_size)),
+                Accumulator_itemSizeOffsetDifference
+            )
             mstore(itemPointer, itemType)
             mstore(add(itemPointer, Conduit_transferItem_token_ptr), token)
             mstore(add(itemPointer, Conduit_transferItem_from_ptr), from)

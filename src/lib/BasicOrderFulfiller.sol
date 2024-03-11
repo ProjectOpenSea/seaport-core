@@ -7,8 +7,10 @@ import {
     OrderType
 } from "seaport-types/src/lib/ConsiderationEnums.sol";
 
-import { BasicOrderParameters, OrderStatus } from
-    "seaport-types/src/lib/ConsiderationStructs.sol";
+import {
+    BasicOrderParameters,
+    OrderStatus
+} from "seaport-types/src/lib/ConsiderationStructs.sol";
 
 import { OrderValidator } from "./OrderValidator.sol";
 
@@ -138,7 +140,7 @@ contract BasicOrderFulfiller is OrderValidator {
      *                          that may optionally be used to transfer approved
      *                          ERC20/721/1155 tokens.
      */
-    constructor(address conduitController) OrderValidator(conduitController) { }
+    constructor(address conduitController) OrderValidator(conduitController) {}
 
     /**
      * @dev Internal function to fulfill an order offering an ERC20, ERC721, or
@@ -190,8 +192,10 @@ contract BasicOrderFulfiller is OrderValidator {
             // Utilize assembly to compare the route to the callvalue.
             assembly {
                 // route 0 and 1 are payable, otherwise route is not payable.
-                correctPayableStatus :=
-                    eq(additionalRecipientsItemType, iszero(callvalue()))
+                correctPayableStatus := eq(
+                    additionalRecipientsItemType,
+                    iszero(callvalue())
+                )
             }
 
             // Revert if msg.value has not been supplied as part of payable
@@ -217,16 +221,15 @@ contract BasicOrderFulfiller is OrderValidator {
                 offerTypeIsAdditionalRecipientsType := gt(route, 3)
 
                 // If route > 3 additionalRecipientsToken is at 0xc4 else 0x24.
-                additionalRecipientsToken :=
-                    calldataload(
-                        add(
-                            BasicOrder_considerationToken_cdPtr,
-                            mul(
-                                offerTypeIsAdditionalRecipientsType,
-                                BasicOrder_common_params_size
-                            )
+                additionalRecipientsToken := calldataload(
+                    add(
+                        BasicOrder_considerationToken_cdPtr,
+                        mul(
+                            offerTypeIsAdditionalRecipientsType,
+                            BasicOrder_common_params_size
                         )
                     )
+                )
 
                 // If route > 2, receivedItemType is route - 2. If route is 2,
                 // the receivedItemType is ERC20 (1). Otherwise, it is native
@@ -254,13 +257,12 @@ contract BasicOrderFulfiller is OrderValidator {
         // Utilize assembly to derive conduit (if relevant) based on route.
         assembly {
             // use offerer conduit for routes 0-3, fulfiller conduit otherwise.
-            conduitKey :=
-                calldataload(
-                    add(
-                        BasicOrder_offererConduit_cdPtr,
-                        shl(OneWordShift, offerTypeIsAdditionalRecipientsType)
-                    )
+            conduitKey := calldataload(
+                add(
+                    BasicOrder_offererConduit_cdPtr,
+                    shl(OneWordShift, offerTypeIsAdditionalRecipientsType)
                 )
+            )
         }
 
         // Transfer tokens based on the route.
@@ -279,7 +281,8 @@ contract BasicOrderFulfiller is OrderValidator {
 
                     // revert(abi.encodeWithSignature("UnusedItemParameters()"))
                     revert(
-                        Error_selector_offset, UnusedItemParameters_error_length
+                        Error_selector_offset,
+                        UnusedItemParameters_error_length
                     )
                 }
             }
@@ -301,57 +304,57 @@ contract BasicOrderFulfiller is OrderValidator {
             if (route == BasicOrderRouteType.ERC20_TO_ERC721) {
                 // Transfer ERC721 to caller using offerer's conduit preference.
                 _transferERC721(
-                    CalldataPointer.wrap(
-                        BasicOrder_offerToken_cdPtr
-                    ).readAddress(),
-                    CalldataPointer.wrap(
-                        BasicOrder_offerer_cdPtr
-                    ).readAddress(),
+                    CalldataPointer
+                        .wrap(BasicOrder_offerToken_cdPtr)
+                        .readAddress(),
+                    CalldataPointer
+                        .wrap(BasicOrder_offerer_cdPtr)
+                        .readAddress(),
                     msg.sender,
-                    CalldataPointer.wrap(
-                        BasicOrder_offerIdentifier_cdPtr
-                    ).readUint256(),
-                    CalldataPointer.wrap(
-                        BasicOrder_offerAmount_cdPtr
-                    ).readUint256(),
+                    CalldataPointer
+                        .wrap(BasicOrder_offerIdentifier_cdPtr)
+                        .readUint256(),
+                    CalldataPointer
+                        .wrap(BasicOrder_offerAmount_cdPtr)
+                        .readUint256(),
                     conduitKey,
                     accumulator
                 );
             } else if (route == BasicOrderRouteType.ERC20_TO_ERC1155) {
                 // Transfer ERC1155 to caller with offerer's conduit preference.
                 _transferERC1155(
-                    CalldataPointer.wrap(
-                        BasicOrder_offerToken_cdPtr
-                    ).readAddress(),
-                    CalldataPointer.wrap(
-                        BasicOrder_offerer_cdPtr
-                    ).readAddress(),
+                    CalldataPointer
+                        .wrap(BasicOrder_offerToken_cdPtr)
+                        .readAddress(),
+                    CalldataPointer
+                        .wrap(BasicOrder_offerer_cdPtr)
+                        .readAddress(),
                     msg.sender,
-                    CalldataPointer.wrap(
-                        BasicOrder_offerIdentifier_cdPtr
-                    ).readUint256(),
-                    CalldataPointer.wrap(
-                        BasicOrder_offerAmount_cdPtr
-                    ).readUint256(),
+                    CalldataPointer
+                        .wrap(BasicOrder_offerIdentifier_cdPtr)
+                        .readUint256(),
+                    CalldataPointer
+                        .wrap(BasicOrder_offerAmount_cdPtr)
+                        .readUint256(),
                     conduitKey,
                     accumulator
                 );
             } else if (route == BasicOrderRouteType.ERC721_TO_ERC20) {
                 // Transfer ERC721 to offerer using caller's conduit preference.
                 _transferERC721(
-                    CalldataPointer.wrap(
-                        BasicOrder_considerationToken_cdPtr
-                    ).readAddress(),
+                    CalldataPointer
+                        .wrap(BasicOrder_considerationToken_cdPtr)
+                        .readAddress(),
                     msg.sender,
-                    CalldataPointer.wrap(
-                        BasicOrder_offerer_cdPtr
-                    ).readAddress(),
-                    CalldataPointer.wrap(
-                        BasicOrder_considerationIdentifier_cdPtr
-                    ).readUint256(),
-                    CalldataPointer.wrap(
-                        BasicOrder_considerationAmount_cdPtr
-                    ).readUint256(),
+                    CalldataPointer
+                        .wrap(BasicOrder_offerer_cdPtr)
+                        .readAddress(),
+                    CalldataPointer
+                        .wrap(BasicOrder_considerationIdentifier_cdPtr)
+                        .readUint256(),
+                    CalldataPointer
+                        .wrap(BasicOrder_considerationAmount_cdPtr)
+                        .readUint256(),
                     conduitKey,
                     accumulator
                 );
@@ -360,19 +363,19 @@ contract BasicOrderFulfiller is OrderValidator {
 
                 // Transfer ERC1155 to offerer with caller's conduit preference.
                 _transferERC1155(
-                    CalldataPointer.wrap(
-                        BasicOrder_considerationToken_cdPtr
-                    ).readAddress(),
+                    CalldataPointer
+                        .wrap(BasicOrder_considerationToken_cdPtr)
+                        .readAddress(),
                     msg.sender,
-                    CalldataPointer.wrap(
-                        BasicOrder_offerer_cdPtr
-                    ).readAddress(),
-                    CalldataPointer.wrap(
-                        BasicOrder_considerationIdentifier_cdPtr
-                    ).readUint256(),
-                    CalldataPointer.wrap(
-                        BasicOrder_considerationAmount_cdPtr
-                    ).readUint256(),
+                    CalldataPointer
+                        .wrap(BasicOrder_offerer_cdPtr)
+                        .readAddress(),
+                    CalldataPointer
+                        .wrap(BasicOrder_considerationIdentifier_cdPtr)
+                        .readUint256(),
+                    CalldataPointer
+                        .wrap(BasicOrder_considerationAmount_cdPtr)
+                        .readUint256(),
                     conduitKey,
                     accumulator
                 );
@@ -380,7 +383,8 @@ contract BasicOrderFulfiller is OrderValidator {
 
             // Transfer ERC20 tokens to all recipients and wrap up.
             _transferERC20AndFinalize(
-                offerTypeIsAdditionalRecipientsType, accumulator
+                offerTypeIsAdditionalRecipientsType,
+                accumulator
             );
 
             // Trigger any remaining accumulated transfers via call to conduit.
@@ -526,7 +530,8 @@ contract BasicOrderFulfiller is OrderValidator {
                 // Write ConsiderationItem type hash and item type to memory.
                 mstore(BasicOrder_considerationItem_typeHash_ptr, typeHash)
                 mstore(
-                    BasicOrder_considerationItem_itemType_ptr, receivedItemType
+                    BasicOrder_considerationItem_itemType_ptr,
+                    receivedItemType
                 )
 
                 // Copy calldata region with (token, identifier, amount) from
@@ -566,8 +571,9 @@ contract BasicOrderFulfiller is OrderValidator {
                 // Get the additional recipients array length from calldata.
                 // This variable will later be repurposed to track the total
                 // original additional recipients instead of the total supplied.
-                let totalAdditionalRecipients :=
-                    calldataload(BasicOrder_addlRecipients_length_cdPtr)
+                let totalAdditionalRecipients := calldataload(
+                    BasicOrder_addlRecipients_length_cdPtr
+                )
 
                 // Calculate pointer to length of OrderFulfilled consideration
                 // array. Note that this is based on total original additional
@@ -589,13 +595,16 @@ contract BasicOrderFulfiller is OrderValidator {
                 // additional recipients, plus one for the primary consideration
                 // item.
                 mstore(
-                    eventConsiderationArrPtr, add(totalAdditionalRecipients, 1)
+                    eventConsiderationArrPtr,
+                    add(totalAdditionalRecipients, 1)
                 )
 
                 // Overwrite the consideration array pointer so it points to the
                 // body of the first element
-                eventConsiderationArrPtr :=
-                    add(eventConsiderationArrPtr, OneWord)
+                eventConsiderationArrPtr := add(
+                    eventConsiderationArrPtr,
+                    OneWord
+                )
 
                 // Set itemType at start of the ReceivedItem memory region.
                 mstore(eventConsiderationArrPtr, receivedItemType)
@@ -620,8 +629,9 @@ contract BasicOrderFulfiller is OrderValidator {
 
                 // Put pointer to consideration hashes array on the stack.
                 // This will be updated as each additional recipient is hashed
-                let considerationHashesPtr :=
-                    BasicOrder_considerationHashesArray_ptr
+                let
+                    considerationHashesPtr
+                := BasicOrder_considerationHashesArray_ptr
 
                 // Write item type, token, & identifier for additional recipient
                 // to memory region for hashing EIP712 ConsiderationItem; these
@@ -647,17 +657,20 @@ contract BasicOrderFulfiller is OrderValidator {
                     BasicOrder_totalOriginalAdditionalRecipients_cdPtr
                 )
                 let i := 0
-                for { } lt(i, totalAdditionalRecipients) { i := add(i, 1) } {
+                for {
+
+                } lt(i, totalAdditionalRecipients) {
+                    i := add(i, 1)
+                } {
                     /*
                      * Calculate EIP712 ConsiderationItem hash for recipient.
                      */
 
                     // Retrieve calldata pointer for additional recipient.
-                    let additionalRecipientCdPtr :=
-                        add(
-                            BasicOrder_additionalRecipients_data_cdPtr,
-                            mul(AdditionalRecipient_size, i)
-                        )
+                    let additionalRecipientCdPtr := add(
+                        BasicOrder_additionalRecipients_data_cdPtr,
+                        mul(AdditionalRecipient_size, i)
+                    )
 
                     // Copy startAmount from calldata to the ConsiderationItem
                     // struct.
@@ -676,16 +689,17 @@ contract BasicOrderFulfiller is OrderValidator {
                     )
 
                     // Include the recipient as part of combined recipients.
-                    combinedAdditionalRecipients :=
-                        or(
-                            combinedAdditionalRecipients,
-                            calldataload(add(additionalRecipientCdPtr, OneWord))
-                        )
+                    combinedAdditionalRecipients := or(
+                        combinedAdditionalRecipients,
+                        calldataload(add(additionalRecipientCdPtr, OneWord))
+                    )
 
                     // Add 1 word to the pointer as part of each loop to reduce
                     // operations needed to get local offset into the array.
-                    considerationHashesPtr :=
-                        add(considerationHashesPtr, OneWord)
+                    considerationHashesPtr := add(
+                        considerationHashesPtr,
+                        OneWord
+                    )
 
                     // Calculate EIP712 ConsiderationItem hash and store it in
                     // the array of consideration hashes.
@@ -705,12 +719,15 @@ contract BasicOrderFulfiller is OrderValidator {
                     // beginning of the ReceivedItem struct of the previous
                     // element in the array. Increase it by the size of the
                     // struct to arrive at the pointer for the current element.
-                    eventConsiderationArrPtr :=
-                        add(eventConsiderationArrPtr, ReceivedItem_size)
+                    eventConsiderationArrPtr := add(
+                        eventConsiderationArrPtr,
+                        ReceivedItem_size
+                    )
 
                     // Write itemType to the ReceivedItem struct.
                     mstore(
-                        eventConsiderationArrPtr, additionalRecipientsItemType
+                        eventConsiderationArrPtr,
+                        additionalRecipientsItemType
                     )
 
                     // Write token to the next word of the ReceivedItem struct.
@@ -722,7 +739,8 @@ contract BasicOrderFulfiller is OrderValidator {
                     // Copy endAmount & recipient words to ReceivedItem struct.
                     calldatacopy(
                         add(
-                            eventConsiderationArrPtr, ReceivedItem_amount_offset
+                            eventConsiderationArrPtr,
+                            ReceivedItem_amount_offset
                         ),
                         additionalRecipientCdPtr,
                         TwoWords
@@ -752,27 +770,34 @@ contract BasicOrderFulfiller is OrderValidator {
                  */
 
                 // Overwrite length to length of the additionalRecipients array.
-                totalAdditionalRecipients :=
-                    calldataload(BasicOrder_addlRecipients_length_cdPtr)
+                totalAdditionalRecipients := calldataload(
+                    BasicOrder_addlRecipients_length_cdPtr
+                )
 
-                for { } lt(i, totalAdditionalRecipients) { i := add(i, 1) } {
+                for {
+
+                } lt(i, totalAdditionalRecipients) {
+                    i := add(i, 1)
+                } {
                     // Retrieve calldata pointer for additional recipient.
-                    let additionalRecipientCdPtr :=
-                        add(
-                            BasicOrder_additionalRecipients_data_cdPtr,
-                            mul(AdditionalRecipient_size, i)
-                        )
+                    let additionalRecipientCdPtr := add(
+                        BasicOrder_additionalRecipients_data_cdPtr,
+                        mul(AdditionalRecipient_size, i)
+                    )
 
                     // At this point, eventConsiderationArrPtr points to the
                     // beginning of the ReceivedItem struct of the previous
                     // element in the array. Increase it by the size of the
                     // struct to arrive at the pointer for the current element.
-                    eventConsiderationArrPtr :=
-                        add(eventConsiderationArrPtr, ReceivedItem_size)
+                    eventConsiderationArrPtr := add(
+                        eventConsiderationArrPtr,
+                        ReceivedItem_size
+                    )
 
                     // Write itemType to the ReceivedItem struct.
                     mstore(
-                        eventConsiderationArrPtr, additionalRecipientsItemType
+                        eventConsiderationArrPtr,
+                        additionalRecipientsItemType
                     )
 
                     // Write token to the next word of the ReceivedItem struct.
@@ -784,18 +809,18 @@ contract BasicOrderFulfiller is OrderValidator {
                     // Copy endAmount & recipient words to ReceivedItem struct.
                     calldatacopy(
                         add(
-                            eventConsiderationArrPtr, ReceivedItem_amount_offset
+                            eventConsiderationArrPtr,
+                            ReceivedItem_amount_offset
                         ),
                         additionalRecipientCdPtr,
                         TwoWords
                     )
 
                     // Include the recipient as part of combined recipients.
-                    combinedAdditionalRecipients :=
-                        or(
-                            combinedAdditionalRecipients,
-                            calldataload(add(additionalRecipientCdPtr, OneWord))
-                        )
+                    combinedAdditionalRecipients := or(
+                        combinedAdditionalRecipients,
+                        calldataload(add(additionalRecipientCdPtr, OneWord))
+                    )
                 }
 
                 // Ensure no dirty upper bits on combined additional recipients.
@@ -866,7 +891,8 @@ contract BasicOrderFulfiller is OrderValidator {
                 mstore(
                     0,
                     keccak256(
-                        BasicOrder_offerItem_typeHash_ptr, EIP712_OfferItem_size
+                        BasicOrder_offerItem_typeHash_ptr,
+                        EIP712_OfferItem_size
                     )
                 )
 
@@ -943,8 +969,10 @@ contract BasicOrderFulfiller is OrderValidator {
                 mstore(BasicOrder_order_counter_ptr, counter)
 
                 // Compute the EIP712 Order hash.
-                orderHash :=
-                    keccak256(BasicOrder_order_typeHash_ptr, EIP712_Order_size)
+                orderHash := keccak256(
+                    BasicOrder_order_typeHash_ptr,
+                    EIP712_Order_size
+                )
             }
         }
 
@@ -979,16 +1007,15 @@ contract BasicOrderFulfiller is OrderValidator {
              */
 
             // Derive pointer to start of OrderFulfilled event data.
-            let eventDataPtr :=
-                add(
-                    OrderFulfilled_baseOffset,
-                    shl(
-                        OneWordShift,
-                        calldataload(
-                            BasicOrder_totalOriginalAdditionalRecipients_cdPtr
-                        )
+            let eventDataPtr := add(
+                OrderFulfilled_baseOffset,
+                shl(
+                    OneWordShift,
+                    calldataload(
+                        BasicOrder_totalOriginalAdditionalRecipients_cdPtr
                     )
                 )
+            )
 
             // Write the order hash to the head of the event's data region.
             mstore(eventDataPtr, orderHash)
@@ -1041,16 +1068,13 @@ contract BasicOrderFulfiller is OrderValidator {
             // Derive total data size including SpentItem and ReceivedItem data.
             // SpentItem portion is already included in the baseSize constant,
             // as there can only be one element in the array.
-            let dataSize :=
-                add(
-                    OrderFulfilled_baseSize,
-                    mul(
-                        calldataload(
-                            BasicOrder_addlRecipients_length_cdPtr
-                        ),
-                        ReceivedItem_size
-                    )
+            let dataSize := add(
+                OrderFulfilled_baseSize,
+                mul(
+                    calldataload(BasicOrder_addlRecipients_length_cdPtr),
+                    ReceivedItem_size
                 )
+            )
 
             // Emit OrderFulfilled log with three topics (the event signature
             // as well as the two indexed arguments, the offerer and the zone).
@@ -1071,9 +1095,10 @@ contract BasicOrderFulfiller is OrderValidator {
             mstore(ZeroSlot, 0)
 
             // Update the free memory pointer so that event data is persisted.
-            mstore(FreeMemoryPointerSlot, 
+            mstore(
+                FreeMemoryPointerSlot,
                 add(
-                    eventDataPtr, 
+                    eventDataPtr,
                     // Reserve extra 3 words to be used by `authorizeOrder` and
                     // `validatateOrder` if pre-post exection hook to the zone
                     // is required. These 3 memory slots will be used for the
@@ -1087,9 +1112,7 @@ contract BasicOrderFulfiller is OrderValidator {
         }
 
         // Verify the status of the derived order.
-        OrderStatus storage orderStatus = _validateBasicOrder(
-            orderHash
-        );
+        OrderStatus storage orderStatus = _validateBasicOrder(orderHash);
 
         // Determine whether order is restricted and, if so, that it is valid.
         callDataPointer = _assertRestrictedBasicOrderAuthorization(
@@ -1182,7 +1205,8 @@ contract BasicOrderFulfiller is OrderValidator {
 
                 // Write the transfer source to memory.
                 mstore(
-                    add(callDataOffset, Conduit_execute_transferFrom_ptr), from
+                    add(callDataOffset, Conduit_execute_transferFrom_ptr),
+                    from
                 )
 
                 // Write the transfer recipient (the caller) to memory.
@@ -1206,7 +1230,9 @@ contract BasicOrderFulfiller is OrderValidator {
 
             // Perform the call to the conduit.
             _callConduitUsingOffsets(
-                conduitKey, callDataOffset, OneConduitExecute_size
+                conduitKey,
+                callDataOffset,
+                OneConduitExecute_size
             );
         } else {
             // Otherwise, determine whether it is an ERC721 or ERC1155 item.
@@ -1221,7 +1247,11 @@ contract BasicOrderFulfiller is OrderValidator {
             } else {
                 // Perform transfer to caller via the token contract directly.
                 _performERC1155Transfer(
-                    token, from, msg.sender, identifier, amount
+                    token,
+                    from,
+                    msg.sender,
+                    identifier,
+                    amount
                 );
             }
         }
@@ -1247,11 +1277,10 @@ contract BasicOrderFulfiller is OrderValidator {
         assembly {
             amount := calldataload(BasicOrder_considerationAmount_cdPtr)
             to := calldataload(BasicOrder_offerer_cdPtr)
-            totalAdditionalRecipientsDataSize :=
-                shl(
-                    AdditionalRecipient_size_shift,
-                    calldataload(BasicOrder_addlRecipients_length_cdPtr)
-                )
+            totalAdditionalRecipientsDataSize := shl(
+                AdditionalRecipient_size_shift,
+                calldataload(BasicOrder_addlRecipients_length_cdPtr)
+            )
         }
 
         uint256 additionalRecipientAmount;
@@ -1267,13 +1296,17 @@ contract BasicOrderFulfiller is OrderValidator {
             ) {
                 assembly {
                     // Retrieve calldata pointer for additional recipient.
-                    let additionalRecipientCdPtr :=
-                        add(BasicOrder_additionalRecipients_data_cdPtr, i)
+                    let additionalRecipientCdPtr := add(
+                        BasicOrder_additionalRecipients_data_cdPtr,
+                        i
+                    )
 
-                    additionalRecipientAmount :=
-                        calldataload(additionalRecipientCdPtr)
-                    recipient :=
-                        calldataload(add(OneWord, additionalRecipientCdPtr))
+                    additionalRecipientAmount := calldataload(
+                        additionalRecipientCdPtr
+                    )
+                    recipient := calldataload(
+                        add(OneWord, additionalRecipientCdPtr)
+                    )
                 }
 
                 // Ensure that sufficient native tokens are available.
@@ -1304,7 +1337,8 @@ contract BasicOrderFulfiller is OrderValidator {
             unchecked {
                 // Transfer remaining native tokens to the caller.
                 _transferNativeTokens(
-                    payable(msg.sender), nativeTokensRemaining - amount
+                    payable(msg.sender),
+                    nativeTokensRemaining - amount
                 );
             }
         }
@@ -1358,8 +1392,9 @@ contract BasicOrderFulfiller is OrderValidator {
                     from := caller()
                     to := calldataload(BasicOrder_offerer_cdPtr)
                     token := calldataload(BasicOrder_considerationToken_cdPtr)
-                    identifier :=
-                        calldataload(BasicOrder_considerationIdentifier_cdPtr)
+                    identifier := calldataload(
+                        BasicOrder_considerationIdentifier_cdPtr
+                    )
                     amount := calldataload(BasicOrder_considerationAmount_cdPtr)
                 }
             }
@@ -1376,39 +1411,41 @@ contract BasicOrderFulfiller is OrderValidator {
         // Utilize assembly to derive conduit (if relevant) based on route.
         assembly {
             // Use offerer conduit if fromOfferer, fulfiller conduit otherwise.
-            conduitKey :=
-                calldataload(
-                    sub(
-                        BasicOrder_fulfillerConduit_cdPtr,
-                        shl(OneWordShift, fromOfferer)
-                    )
+            conduitKey := calldataload(
+                sub(
+                    BasicOrder_fulfillerConduit_cdPtr,
+                    shl(OneWordShift, fromOfferer)
                 )
+            )
         }
 
         // Retrieve total size of additional recipients data and place on stack.
         uint256 totalAdditionalRecipientsDataSize;
         assembly {
-            totalAdditionalRecipientsDataSize :=
-                shl(
-                    AdditionalRecipient_size_shift,
-                    calldataload(BasicOrder_addlRecipients_length_cdPtr)
-                )
+            totalAdditionalRecipientsDataSize := shl(
+                AdditionalRecipient_size_shift,
+                calldataload(BasicOrder_addlRecipients_length_cdPtr)
+            )
         }
 
         uint256 additionalRecipientAmount;
         address recipient;
 
         // Iterate over each additional recipient.
-        for (uint256 i = 0; i < totalAdditionalRecipientsDataSize;) {
+        for (uint256 i = 0; i < totalAdditionalRecipientsDataSize; ) {
             assembly {
                 // Retrieve calldata pointer for additional recipient.
-                let additionalRecipientCdPtr :=
-                    add(BasicOrder_additionalRecipients_data_cdPtr, i)
+                let additionalRecipientCdPtr := add(
+                    BasicOrder_additionalRecipients_data_cdPtr,
+                    i
+                )
 
-                additionalRecipientAmount :=
-                    calldataload(additionalRecipientCdPtr)
-                recipient :=
-                    calldataload(add(OneWord, additionalRecipientCdPtr))
+                additionalRecipientAmount := calldataload(
+                    additionalRecipientCdPtr
+                )
+                recipient := calldataload(
+                    add(OneWord, additionalRecipientCdPtr)
+                )
             }
 
             // Decrement the amount to transfer to fulfiller if indicated.

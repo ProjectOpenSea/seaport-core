@@ -42,7 +42,7 @@ contract Verifiers is Assertions, SignatureVerification {
      *                          that may optionally be used to transfer approved
      *                          ERC20/721/1155 tokens.
      */
-    constructor(address conduitController) Assertions(conduitController) { }
+    constructor(address conduitController) Assertions(conduitController) {}
 
     /**
      * @dev Internal view function to ensure that the current time falls within
@@ -128,7 +128,11 @@ contract Verifiers is Assertions, SignatureVerification {
 
         // Ensure that the signature for the digest is valid for the offerer.
         _assertValidSignature(
-            offerer, digest, originalDigest, originalSignatureLength, signature
+            offerer,
+            digest,
+            originalDigest,
+            originalSignatureLength,
+            signature
         );
     }
 
@@ -139,31 +143,28 @@ contract Verifiers is Assertions, SignatureVerification {
      *
      * @return validLength True if bulk order size is valid, false otherwise.
      */
-    function _isValidBulkOrderSize(uint256 signatureLength)
-        internal
-        pure
-        returns (bool validLength)
-    {
+    function _isValidBulkOrderSize(
+        uint256 signatureLength
+    ) internal pure returns (bool validLength) {
         // Utilize assembly to validate the length; the equivalent logic is
         // (64 + x) + 3 + 32y where (0 <= x <= 1) and (1 <= y <= 24).
         assembly {
-            validLength :=
-                and(
-                    lt(
-                        sub(signatureLength, BulkOrderProof_minSize),
-                        BulkOrderProof_rangeSize
-                    ),
-                    lt(
-                        and(
-                            add(
-                                signatureLength,
-                                BulkOrderProof_lengthAdjustmentBeforeMask
-                            ),
-                            ThirtyOneBytes
+            validLength := and(
+                lt(
+                    sub(signatureLength, BulkOrderProof_minSize),
+                    BulkOrderProof_rangeSize
+                ),
+                lt(
+                    and(
+                        add(
+                            signatureLength,
+                            BulkOrderProof_lengthAdjustmentBeforeMask
                         ),
-                        BulkOrderProof_lengthRangeAfterMask
-                    )
+                        ThirtyOneBytes
+                    ),
+                    BulkOrderProof_lengthRangeAfterMask
                 )
+            )
         }
     }
 
@@ -216,7 +217,11 @@ contract Verifiers is Assertions, SignatureVerification {
             mstore(xor(scratchPtr1, OneWord), mload(proof))
 
             // Compute remaining proofs.
-            for { let i := 1 } lt(i, height) { i := add(i, 1) } {
+            for {
+                let i := 1
+            } lt(i, height) {
+                i := add(i, 1)
+            } {
                 proof := add(proof, OneWord)
                 let scratchPtr := shl(OneWordShift, and(shr(i, key), 1))
                 mstore(scratchPtr, keccak256(0, TwoWords))

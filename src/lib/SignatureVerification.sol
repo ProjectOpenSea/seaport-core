@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import { SignatureVerificationErrors } from
-    "seaport-types/src/interfaces/SignatureVerificationErrors.sol";
+import {
+    SignatureVerificationErrors
+} from "seaport-types/src/interfaces/SignatureVerificationErrors.sol";
 
 import { LowLevelHelpers } from "./LowLevelHelpers.sol";
 
@@ -42,10 +43,7 @@ import {
  * @author 0age
  * @notice SignatureVerification contains logic for verifying signatures.
  */
-contract SignatureVerification is
-    SignatureVerificationErrors,
-    LowLevelHelpers
-{
+contract SignatureVerification is SignatureVerificationErrors, LowLevelHelpers {
     /**
      * @dev Internal view function to verify the signature of an order. An
      *      ERC-1271 fallback will be attempted if either the signature length
@@ -101,15 +99,18 @@ contract SignatureVerification is
                 // Try to recover signer.
                 if iszero(gt(lenDiff, 1)) {
                     // Read the signature `s` value.
-                    let originalSignatureS :=
-                        mload(add(signature, ECDSA_signature_s_offset))
+                    let originalSignatureS := mload(
+                        add(signature, ECDSA_signature_s_offset)
+                    )
 
                     // Read the first byte of the word after `s`. If the
                     // signature is 65 bytes, this will be the real `v` value.
                     // If not, it will need to be modified - doing it this way
                     // saves an extra condition.
-                    let v :=
-                        byte(0, mload(add(signature, ECDSA_signature_v_offset)))
+                    let v := byte(
+                        0,
+                        mload(add(signature, ECDSA_signature_v_offset))
+                    )
 
                     // If lenDiff is 1, parse 64-byte signature as ECDSA.
                     if lenDiff {
@@ -126,7 +127,8 @@ contract SignatureVerification is
                         mstore(
                             add(signature, ECDSA_signature_s_offset),
                             and(
-                                originalSignatureS, EIP2098_allButHighestBitMask
+                                originalSignatureS,
+                                EIP2098_allButHighestBitMask
                             )
                         )
                     }
@@ -198,13 +200,12 @@ contract SignatureVerification is
                 let cachedWordOverwrittenBySelector := mload(selectorPtr)
 
                 // Cache the value currently stored at the digest pointer.
-                let cachedWordOverwrittenByDigest :=
-                    mload(
-                        sub(
-                            signature,
-                            EIP1271_isValidSignature_digest_negativeOffset
-                        )
+                let cachedWordOverwrittenByDigest := mload(
+                    sub(
+                        signature,
+                        EIP1271_isValidSignature_digest_negativeOffset
                     )
+                )
 
                 // Write the selector first, since it overlaps the digest.
                 mstore(selectorPtr, EIP1271_isValidSignature_selector)
@@ -219,18 +220,17 @@ contract SignatureVerification is
                 )
 
                 // Call signer with `isValidSignature` to validate signature.
-                success :=
-                    staticcall(
-                        gas(),
-                        signer,
-                        selectorPtr,
-                        add(
-                            originalSignatureLength,
-                            EIP1271_isValidSignature_calldata_baseLength
-                        ),
-                        0,
-                        OneWord
-                    )
+                success := staticcall(
+                    gas(),
+                    signer,
+                    selectorPtr,
+                    add(
+                        originalSignatureLength,
+                        EIP1271_isValidSignature_calldata_baseLength
+                    ),
+                    0,
+                    OneWord
+                )
 
                 // Determine if the signature is valid on successful calls.
                 if success {
@@ -313,7 +313,8 @@ contract SignatureVerification is
 
                         // revert(abi.encodeWithSignature("InvalidSigner()"))
                         revert(
-                            Error_selector_offset, InvalidSigner_error_length
+                            Error_selector_offset,
+                            InvalidSigner_error_length
                         )
                     }
                 }

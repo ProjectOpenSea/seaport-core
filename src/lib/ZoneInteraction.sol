@@ -9,8 +9,9 @@ import {
     OrderParameters
 } from "seaport-types/src/lib/ConsiderationStructs.sol";
 
-import { ZoneInteractionErrors } from
-    "seaport-types/src/interfaces/ZoneInteractionErrors.sol";
+import {
+    ZoneInteractionErrors
+} from "seaport-types/src/interfaces/ZoneInteractionErrors.sol";
 
 import { LowLevelHelpers } from "./LowLevelHelpers.sol";
 
@@ -99,14 +100,14 @@ contract ZoneInteraction is
 
             // Register the calldata pointer for the encoded calldata.
             callDataPointer = MemoryPointer.unwrap(callData);
-        
+
             // Utilize unchecked logic as size value cannot be so large as to
             // cause an overflow.
             unchecked {
                 // Write the packed encoding of size and memory location for
                 // order hashes to memory at the head of the encoded calldata.
                 callData.write(
-                    (size + OneWord) << 128 | memoryLocationForOrderHashes
+                    ((size + OneWord) << 128) | memoryLocationForOrderHashes
                 );
             }
         }
@@ -190,7 +191,7 @@ contract ZoneInteraction is
      * @param orderHash       The hash of the order.
      * @param orderIndex      The index of the order.
      * @param revertOnInvalid Whether to revert if the call is invalid.
-     * 
+     *
      * @return isValid True if the order is valid, false otherwise (unless
      *                 revertOnInvalid is true, in which case this function
      *                 will revert).
@@ -219,14 +220,15 @@ contract ZoneInteraction is
             );
 
             // Perform call and ensure a corresponding magic value was returned.
-            return _callAndCheckStatusWithSkip(
-                parameters.zone,
-                orderHash,
-                callData,
-                size,
-                InvalidRestrictedOrder_error_selector,
-                revertOnInvalid
-            );
+            return
+                _callAndCheckStatusWithSkip(
+                    parameters.zone,
+                    orderHash,
+                    callData,
+                    size,
+                    InvalidRestrictedOrder_error_selector,
+                    revertOnInvalid
+                );
         }
 
         return true;
@@ -266,14 +268,14 @@ contract ZoneInteraction is
                 orderHashes,
                 orderIndex
             );
-            
+
             // Write the error selector to memory at the zero slot where it can
             // be used to revert with a specific error message.
             ZeroSlotPtr.write(InvalidRestrictedOrder_error_selector);
 
             // Perform call and ensure a corresponding magic value was returned.
             _callAndCheckStatus(parameters.zone, orderHash, callData, size);
-            
+
             // Restore the zero slot.
             ZeroSlotPtr.write(0);
         }
@@ -311,14 +313,18 @@ contract ZoneInteraction is
         ) {
             // Encode the `validateOrder` call in memory.
             (callData, size) = _encodeValidateOrder(
-                parameters.toMemoryPointer().offset(OrderParameters_salt_offset)
+                parameters
+                    .toMemoryPointer()
+                    .offset(OrderParameters_salt_offset)
                     .readUint256(),
                 orderHashes
             );
 
             // Set the target to the zone.
             target = (
-                parameters.toMemoryPointer().offset(OrderParameters_zone_offset)
+                parameters
+                    .toMemoryPointer()
+                    .offset(OrderParameters_zone_offset)
                     .readAddress()
             );
 
@@ -331,8 +337,10 @@ contract ZoneInteraction is
             // Shift the target 96 bits to the left.
             uint256 shiftedOfferer;
             assembly {
-                shiftedOfferer :=
-                    shl(ContractOrder_orderHash_offerer_shift, target)
+                shiftedOfferer := shl(
+                    ContractOrder_orderHash_offerer_shift,
+                    target
+                )
             }
 
             // Encode the `ratifyOrder` call in memory.
@@ -349,14 +357,14 @@ contract ZoneInteraction is
         } else {
             return;
         }
-        
+
         // Write the error selector to memory at the zero slot where it can be
         // used to revert with a specific error message.
         ZeroSlotPtr.write(errorSelector);
 
         // Perform call and ensure a corresponding magic value was returned.
         _callAndCheckStatus(target, orderHash, callData, size);
-        
+
         // Restore the zero slot.
         ZeroSlotPtr.write(0);
     }
@@ -371,21 +379,19 @@ contract ZoneInteraction is
      * @return mustValidate True if the order type is restricted and the caller
      *                      is not the specified zone, false otherwise.
      */
-    function _isRestrictedAndCallerNotZone(OrderType orderType, address zone)
-        internal
-        view
-        returns (bool mustValidate)
-    {
+    function _isRestrictedAndCallerNotZone(
+        OrderType orderType,
+        address zone
+    ) internal view returns (bool mustValidate) {
         // Utilize assembly to efficiently perform the check.
         assembly {
-            mustValidate :=
-                and(
-                    // Note that this check requires that there are no order
-                    // types beyond the current set (0-4).  It will need to be
-                    // modified if more order types are added.
-                    and(lt(orderType, 4), gt(orderType, 1)),
-                    iszero(eq(caller(), zone))
-                )
+            mustValidate := and(
+                // Note that this check requires that there are no order
+                // types beyond the current set (0-4).  It will need to be
+                // modified if more order types are added.
+                and(lt(orderType, 4), gt(orderType, 1)),
+                iszero(eq(caller(), zone))
+            )
         }
     }
 
@@ -436,9 +442,7 @@ contract ZoneInteraction is
                 //     "InvalidRestrictedOrder(bytes32)",
                 //     orderHash
                 // ))
-                revert(
-                    0x7c, InvalidRestrictedOrder_error_length
-                )
+                revert(0x7c, InvalidRestrictedOrder_error_length)
             }
         }
 
@@ -452,9 +456,7 @@ contract ZoneInteraction is
                 //     "InvalidRestrictedOrder(bytes32)",
                 //     orderHash
                 // ))
-                revert(
-                    0x7c, InvalidRestrictedOrder_error_length
-                )
+                revert(0x7c, InvalidRestrictedOrder_error_length)
             }
         }
     }
@@ -516,7 +518,8 @@ contract ZoneInteraction is
                 //     orderHash
                 // ))
                 revert(
-                    Error_selector_offset, InvalidRestrictedOrder_error_length
+                    Error_selector_offset,
+                    InvalidRestrictedOrder_error_length
                 )
             }
         }
@@ -533,7 +536,8 @@ contract ZoneInteraction is
                 //     orderHash
                 // ))
                 revert(
-                    Error_selector_offset, InvalidRestrictedOrder_error_length
+                    Error_selector_offset,
+                    InvalidRestrictedOrder_error_length
                 )
             }
         }

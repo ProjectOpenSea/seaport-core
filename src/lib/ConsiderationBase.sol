@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import { ConduitControllerInterface } from
-    "seaport-types/src/interfaces/ConduitControllerInterface.sol";
+import {
+    ConduitControllerInterface
+} from "seaport-types/src/interfaces/ConduitControllerInterface.sol";
 
-import { ConsiderationEventsAndErrors } from
-    "seaport-types/src/interfaces/ConsiderationEventsAndErrors.sol";
+import {
+    ConsiderationEventsAndErrors
+} from "seaport-types/src/interfaces/ConsiderationEventsAndErrors.sol";
 
 import {
     BulkOrder_Typehash_Height_One,
@@ -103,8 +105,9 @@ contract ConsiderationBase is
         _CONDUIT_CONTROLLER = ConduitControllerInterface(conduitController);
 
         // Retrieve the conduit creation code hash from the supplied controller.
-        (_CONDUIT_CREATION_CODE_HASH,) =
-            (_CONDUIT_CONTROLLER.getConduitCodeHashes());
+        (_CONDUIT_CREATION_CODE_HASH, ) = (
+            _CONDUIT_CONTROLLER.getConduitCodeHashes()
+        );
     }
 
     /**
@@ -225,32 +228,53 @@ contract ConsiderationBase is
 
         // Construct the OfferItem type string.
         bytes memory offerItemTypeString = bytes(
-            "OfferItem(" "uint8 itemType," "address token,"
-            "uint256 identifierOrCriteria," "uint256 startAmount,"
-            "uint256 endAmount" ")"
+            "OfferItem("
+            "uint8 itemType,"
+            "address token,"
+            "uint256 identifierOrCriteria,"
+            "uint256 startAmount,"
+            "uint256 endAmount"
+            ")"
         );
 
         // Construct the ConsiderationItem type string.
         bytes memory considerationItemTypeString = bytes(
-            "ConsiderationItem(" "uint8 itemType," "address token,"
-            "uint256 identifierOrCriteria," "uint256 startAmount,"
-            "uint256 endAmount," "address recipient" ")"
+            "ConsiderationItem("
+            "uint8 itemType,"
+            "address token,"
+            "uint256 identifierOrCriteria,"
+            "uint256 startAmount,"
+            "uint256 endAmount,"
+            "address recipient"
+            ")"
         );
 
         // Construct the OrderComponents type string, not including the above.
         bytes memory orderComponentsPartialTypeString = bytes(
-            "OrderComponents(" "address offerer," "address zone,"
-            "OfferItem[] offer," "ConsiderationItem[] consideration,"
-            "uint8 orderType," "uint256 startTime," "uint256 endTime,"
-            "bytes32 zoneHash," "uint256 salt," "bytes32 conduitKey,"
-            "uint256 counter" ")"
+            "OrderComponents("
+            "address offerer,"
+            "address zone,"
+            "OfferItem[] offer,"
+            "ConsiderationItem[] consideration,"
+            "uint8 orderType,"
+            "uint256 startTime,"
+            "uint256 endTime,"
+            "bytes32 zoneHash,"
+            "uint256 salt,"
+            "bytes32 conduitKey,"
+            "uint256 counter"
+            ")"
         );
 
         // Construct the primary EIP-712 domain type string.
         eip712DomainTypehash = keccak256(
             bytes(
-                "EIP712Domain(" "string name," "string version,"
-                "uint256 chainId," "address verifyingContract" ")"
+                "EIP712Domain("
+                "string name,"
+                "string version,"
+                "uint256 chainId,"
+                "address verifyingContract"
+                ")"
             )
         );
 
@@ -282,11 +306,9 @@ contract ConsiderationBase is
      * @return _typeHash The EIP-712 typehash for the bulk order type with the
      *                   given height.
      */
-    function _lookupBulkOrderTypehash(uint256 _treeHeight)
-        internal
-        pure
-        returns (bytes32 _typeHash)
-    {
+    function _lookupBulkOrderTypehash(
+        uint256 _treeHeight
+    ) internal pure returns (bytes32 _typeHash) {
         // Utilize assembly to efficiently retrieve correct bulk order typehash.
         assembly {
             // Use a Yul function to enable use of the `leave` keyword
@@ -299,24 +321,22 @@ contract ConsiderationBase is
                         // Handle tree heights one and two.
                         if lt(treeHeight, 3) {
                             // Utilize branchless logic to determine typehash.
-                            typeHash :=
-                                ternary(
-                                    eq(treeHeight, 1),
-                                    BulkOrder_Typehash_Height_One,
-                                    BulkOrder_Typehash_Height_Two
-                                )
+                            typeHash := ternary(
+                                eq(treeHeight, 1),
+                                BulkOrder_Typehash_Height_One,
+                                BulkOrder_Typehash_Height_Two
+                            )
 
                             // Exit the function once typehash has been located.
                             leave
                         }
 
                         // Handle height three and four via branchless logic.
-                        typeHash :=
-                            ternary(
-                                eq(treeHeight, 3),
-                                BulkOrder_Typehash_Height_Three,
-                                BulkOrder_Typehash_Height_Four
-                            )
+                        typeHash := ternary(
+                            eq(treeHeight, 3),
+                            BulkOrder_Typehash_Height_Three,
+                            BulkOrder_Typehash_Height_Four
+                        )
 
                         // Exit the function once typehash has been located.
                         leave
@@ -325,24 +345,22 @@ contract ConsiderationBase is
                     // Handle tree height five and six.
                     if lt(treeHeight, 7) {
                         // Utilize branchless logic to determine typehash.
-                        typeHash :=
-                            ternary(
-                                eq(treeHeight, 5),
-                                BulkOrder_Typehash_Height_Five,
-                                BulkOrder_Typehash_Height_Six
-                            )
+                        typeHash := ternary(
+                            eq(treeHeight, 5),
+                            BulkOrder_Typehash_Height_Five,
+                            BulkOrder_Typehash_Height_Six
+                        )
 
                         // Exit the function once typehash has been located.
                         leave
                     }
 
                     // Handle height seven and eight via branchless logic.
-                    typeHash :=
-                        ternary(
-                            eq(treeHeight, 7),
-                            BulkOrder_Typehash_Height_Seven,
-                            BulkOrder_Typehash_Height_Eight
-                        )
+                    typeHash := ternary(
+                        eq(treeHeight, 7),
+                        BulkOrder_Typehash_Height_Seven,
+                        BulkOrder_Typehash_Height_Eight
+                    )
 
                     // Exit the function once typehash has been located.
                     leave
@@ -355,24 +373,22 @@ contract ConsiderationBase is
                         // Handle tree height nine and ten.
                         if lt(treeHeight, 11) {
                             // Utilize branchless logic to determine typehash.
-                            typeHash :=
-                                ternary(
-                                    eq(treeHeight, 9),
-                                    BulkOrder_Typehash_Height_Nine,
-                                    BulkOrder_Typehash_Height_Ten
-                                )
+                            typeHash := ternary(
+                                eq(treeHeight, 9),
+                                BulkOrder_Typehash_Height_Nine,
+                                BulkOrder_Typehash_Height_Ten
+                            )
 
                             // Exit the function once typehash has been located.
                             leave
                         }
 
                         // Handle height eleven and twelve via branchless logic.
-                        typeHash :=
-                            ternary(
-                                eq(treeHeight, 11),
-                                BulkOrder_Typehash_Height_Eleven,
-                                BulkOrder_Typehash_Height_Twelve
-                            )
+                        typeHash := ternary(
+                            eq(treeHeight, 11),
+                            BulkOrder_Typehash_Height_Eleven,
+                            BulkOrder_Typehash_Height_Twelve
+                        )
 
                         // Exit the function once typehash has been located.
                         leave
@@ -381,23 +397,21 @@ contract ConsiderationBase is
                     // Handle tree height thirteen and fourteen.
                     if lt(treeHeight, 15) {
                         // Utilize branchless logic to determine typehash.
-                        typeHash :=
-                            ternary(
-                                eq(treeHeight, 13),
-                                BulkOrder_Typehash_Height_Thirteen,
-                                BulkOrder_Typehash_Height_Fourteen
-                            )
+                        typeHash := ternary(
+                            eq(treeHeight, 13),
+                            BulkOrder_Typehash_Height_Thirteen,
+                            BulkOrder_Typehash_Height_Fourteen
+                        )
 
                         // Exit the function once typehash has been located.
                         leave
                     }
                     // Handle height fifteen and sixteen via branchless logic.
-                    typeHash :=
-                        ternary(
-                            eq(treeHeight, 15),
-                            BulkOrder_Typehash_Height_Fifteen,
-                            BulkOrder_Typehash_Height_Sixteen
-                        )
+                    typeHash := ternary(
+                        eq(treeHeight, 15),
+                        BulkOrder_Typehash_Height_Fifteen,
+                        BulkOrder_Typehash_Height_Sixteen
+                    )
 
                     // Exit the function once typehash has been located.
                     leave
@@ -408,24 +422,22 @@ contract ConsiderationBase is
                     // Handle tree height seventeen and eighteen.
                     if lt(treeHeight, 19) {
                         // Utilize branchless logic to determine typehash.
-                        typeHash :=
-                            ternary(
-                                eq(treeHeight, 17),
-                                BulkOrder_Typehash_Height_Seventeen,
-                                BulkOrder_Typehash_Height_Eighteen
-                            )
+                        typeHash := ternary(
+                            eq(treeHeight, 17),
+                            BulkOrder_Typehash_Height_Seventeen,
+                            BulkOrder_Typehash_Height_Eighteen
+                        )
 
                         // Exit the function once typehash has been located.
                         leave
                     }
 
                     // Handle height nineteen and twenty via branchless logic.
-                    typeHash :=
-                        ternary(
-                            eq(treeHeight, 19),
-                            BulkOrder_Typehash_Height_Nineteen,
-                            BulkOrder_Typehash_Height_Twenty
-                        )
+                    typeHash := ternary(
+                        eq(treeHeight, 19),
+                        BulkOrder_Typehash_Height_Nineteen,
+                        BulkOrder_Typehash_Height_Twenty
+                    )
 
                     // Exit the function once typehash has been located.
                     leave
@@ -434,24 +446,22 @@ contract ConsiderationBase is
                 // Handle tree height twenty-one and twenty-two.
                 if lt(treeHeight, 23) {
                     // Utilize branchless logic to determine typehash.
-                    typeHash :=
-                        ternary(
-                            eq(treeHeight, 21),
-                            BulkOrder_Typehash_Height_TwentyOne,
-                            BulkOrder_Typehash_Height_TwentyTwo
-                        )
+                    typeHash := ternary(
+                        eq(treeHeight, 21),
+                        BulkOrder_Typehash_Height_TwentyOne,
+                        BulkOrder_Typehash_Height_TwentyTwo
+                    )
 
                     // Exit the function once typehash has been located.
                     leave
                 }
 
                 // Handle height twenty-three & twenty-four w/ branchless logic.
-                typeHash :=
-                    ternary(
-                        eq(treeHeight, 23),
-                        BulkOrder_Typehash_Height_TwentyThree,
-                        BulkOrder_Typehash_Height_TwentyFour
-                    )
+                typeHash := ternary(
+                    eq(treeHeight, 23),
+                    BulkOrder_Typehash_Height_TwentyThree,
+                    BulkOrder_Typehash_Height_TwentyFour
+                )
 
                 // Exit the function once typehash has been located.
                 leave
