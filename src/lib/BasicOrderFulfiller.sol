@@ -24,7 +24,7 @@ import {
     AdditionalRecipient_size_shift,
     AdditionalRecipient_size,
     BasicOrder_additionalRecipients_data_cdPtr,
-    BasicOrder_additionalRecipients_length_cdPtr,
+    BasicOrder_addlRecipients_length_cdPtr,
     BasicOrder_basicOrderType_cdPtr,
     BasicOrder_common_params_size,
     BasicOrder_considerationAmount_cdPtr,
@@ -474,7 +474,7 @@ contract BasicOrderFulfiller is OrderValidator {
 
             // Ensure consideration array length isn't less than total original.
             if lt(
-                calldataload(BasicOrder_additionalRecipients_length_cdPtr),
+                calldataload(BasicOrder_addlRecipients_length_cdPtr),
                 calldataload(BasicOrder_totalOriginalAdditionalRecipients_cdPtr)
             ) {
                 // Store left-padded selector with push4 (reduces bytecode),
@@ -567,7 +567,7 @@ contract BasicOrderFulfiller is OrderValidator {
                 // This variable will later be repurposed to track the total
                 // original additional recipients instead of the total supplied.
                 let totalAdditionalRecipients :=
-                    calldataload(BasicOrder_additionalRecipients_length_cdPtr)
+                    calldataload(BasicOrder_addlRecipients_length_cdPtr)
 
                 // Calculate pointer to length of OrderFulfilled consideration
                 // array. Note that this is based on total original additional
@@ -753,7 +753,7 @@ contract BasicOrderFulfiller is OrderValidator {
 
                 // Overwrite length to length of the additionalRecipients array.
                 totalAdditionalRecipients :=
-                    calldataload(BasicOrder_additionalRecipients_length_cdPtr)
+                    calldataload(BasicOrder_addlRecipients_length_cdPtr)
 
                 for { } lt(i, totalAdditionalRecipients) { i := add(i, 1) } {
                     // Retrieve calldata pointer for additional recipient.
@@ -1046,7 +1046,7 @@ contract BasicOrderFulfiller is OrderValidator {
                     OrderFulfilled_baseSize,
                     mul(
                         calldataload(
-                            BasicOrder_additionalRecipients_length_cdPtr
+                            BasicOrder_addlRecipients_length_cdPtr
                         ),
                         ReceivedItem_size
                     )
@@ -1250,7 +1250,7 @@ contract BasicOrderFulfiller is OrderValidator {
             totalAdditionalRecipientsDataSize :=
                 shl(
                     AdditionalRecipient_size_shift,
-                    calldataload(BasicOrder_additionalRecipients_length_cdPtr)
+                    calldataload(BasicOrder_addlRecipients_length_cdPtr)
                 )
         }
 
@@ -1391,7 +1391,7 @@ contract BasicOrderFulfiller is OrderValidator {
             totalAdditionalRecipientsDataSize :=
                 shl(
                     AdditionalRecipient_size_shift,
-                    calldataload(BasicOrder_additionalRecipients_length_cdPtr)
+                    calldataload(BasicOrder_addlRecipients_length_cdPtr)
                 )
         }
 

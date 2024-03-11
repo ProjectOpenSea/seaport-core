@@ -7,7 +7,7 @@ import {
     authorizeOrder_selector_offset,
     authorizeOrder_selector,
     authorizeOrder_zoneParameters_offset,
-    BasicOrder_additionalRecipients_length_cdPtr,
+    BasicOrder_addlRecipients_length_cdPtr,
     BasicOrder_common_params_size,
     BasicOrder_consideration_offset_from_offer,
     BasicOrder_offerer_cdPtr,
@@ -632,7 +632,7 @@ contract ConsiderationEncoder {
 
             // Retrieve the length of additional recipients.
             uint256 additionalRecipientsLength = CalldataPointer.wrap(
-                BasicOrder_additionalRecipients_length_cdPtr
+                BasicOrder_addlRecipients_length_cdPtr
             ).readUint256();
 
             // Derive size of offer and consideration data.
