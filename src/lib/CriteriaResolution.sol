@@ -343,7 +343,7 @@ contract CriteriaResolution is CriteriaResolutionErrors {
         ItemType newItemType;
         assembly {
             // Item type 4 becomes 2 and item type 5 becomes 3.
-            newItemType := sub(3, eq(itemType, 4))
+            newItemType := sub(itemType, 2)
         }
         offerItem.itemType = newItemType;
 
