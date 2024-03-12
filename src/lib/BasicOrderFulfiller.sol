@@ -1162,6 +1162,9 @@ contract BasicOrderFulfiller is OrderValidator {
 
         // Determine if the transfer is to be performed via a conduit.
         if (conduitKey != bytes32(0)) {
+            // Ensure that the amount is non-zero.
+            _assertNonZeroAmount(amount);
+
             // Use free memory pointer as calldata offset for the conduit call.
             uint256 callDataOffset;
 
@@ -1245,6 +1248,9 @@ contract BasicOrderFulfiller is OrderValidator {
                 // Perform transfer to caller via the token contract directly.
                 _performERC721Transfer(token, from, msg.sender, identifier);
             } else {
+                // Ensure that the amount is non-zero.
+                _assertNonZeroAmount(amount);
+
                 // Perform transfer to caller via the token contract directly.
                 _performERC1155Transfer(
                     token,
