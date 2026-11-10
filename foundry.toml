@@ -8,3 +8,13 @@ src = "src"
 out = "out"
 libs = ["lib"]
 remappings = ["seaport-types/=lib/seaport-types/"]
+
+# The source in src/ is what canonical Seaport 1.6 was built and verified
+# from, so it keeps its original formatting and is not linted.
+# scripts/check-deployed-bytecode.sh checks the build against the deployment.
+[fmt]
+ignore = ["src/**"]
+
+[lint]
+lint_on_build = false
+ignore = ["src/**"]

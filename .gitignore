@@ -1,3 +1,6 @@
+# Dependencies, installed for npm publishing
+node_modules/
+
 # Compiler files
 cache/
 out/
@@ -14,3 +17,6 @@ docs/
 .env
 
 .DS_Store
+
+# Pinned lint tools from scripts/install-tools.sh
+.tools/

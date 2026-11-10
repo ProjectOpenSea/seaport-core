@@ -6,32 +6,40 @@ on:
       - main
       - dev
 
-permissions:
-    contents: write
+# Pushes to the same branch tag in order, so the newest commit gets the tag.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
 
-jobs: 
+permissions:
+  contents: read
+
+jobs:
   tag-commit:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Get current date
-        run: echo "::set-output name=date::$(date +%y-%m-%d)"
-        id: date
-      - name: Get branch name
-        run: echo "::set-output name=branch::${GITHUB_REF#refs/heads/}"
-        id: branch
       - name: Create tag string
-        run: echo "::set-output name=tag::${{ steps.date.outputs.date }}-${{ steps.branch.outputs.branch }}"
         id: tag
+        run: echo "tag=$(date +%y-%m-%d)-${GITHUB_REF#refs/heads/}" >> "$GITHUB_OUTPUT"
+
       - name: Delete tag if exists
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
         run: |
-          if git rev-parse --verify --quiet ${{ steps.tag.outputs.tag }}; then
-            git tag -d ${{ steps.tag.outputs.tag }}
-            git push --delete origin ${{ steps.tag.outputs.tag }}
+          if git rev-parse --verify --quiet "$TAG"; then
+            git tag -d "$TAG"
+            git push --delete origin "$TAG"
           fi
+
       - name: Tag commit with YY-MM-DD-branchname
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
         run: |
-          git tag ${{ steps.tag.outputs.tag }}
-          git push --tags --force 
+          git tag "$TAG"
+          git push --force origin "refs/tags/$TAG"
