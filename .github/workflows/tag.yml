@@ -42,4 +42,4 @@ jobs:
           TAG: ${{ steps.tag.outputs.tag }}
         run: |
           git tag "$TAG"
-          git push --tags --force
+          git push --force origin "refs/tags/$TAG"

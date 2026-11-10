@@ -3,7 +3,10 @@
   "version": "1.6.6",
   "description": "Core smart contracts for the Seaport protocol",
   "main": "src/",
-  "repository": "https://github.com/ProjectOpenSea/seaport-core.git",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ProjectOpenSea/seaport-core.git"
+  },
   "author": "OpenSea",
   "license": "MIT",
   "files": [
