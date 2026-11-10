@@ -1,34 +1,90 @@
 name: test
 
-on: workflow_dispatch
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# A new push to a pull request cancels its older run. Every other run gets
+# its own group, so no run on a branch is cancelled while it waits.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
 
 env:
-  FOUNDRY_PROFILE: ci
+  FOUNDRY_VERSION: v1.9.0
 
 jobs:
-  check:
-    strategy:
-      fail-fast: true
-
-    name: Foundry project
+  build:
+    name: Build and check deployed bytecode
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: recursive
+          persist-credentials: false
 
-      - name: Install Foundry
-        uses: foundry-rs/foundry-toolchain@v1
+      - uses: ./.github/actions/setup-foundry
         with:
-          version: nightly
+          version: ${{ env.FOUNDRY_VERSION }}
 
-      - name: Run Forge build
-        run: |
-          forge --version
-          forge build --sizes
-        id: build
+      - name: Build
+        run: forge build --sizes
 
-      - name: Run Forge tests
+      - name: Check the build matches deployed Seaport 1.6
+        run: scripts/check-deployed-bytecode.sh
+
+  lint:
+    name: Run linters
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup-foundry
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+
+      # The tools are pinned by version and SHA-256 in the install script, so
+      # the cache only skips downloads.
+      - name: Restore tools
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .tools
+          key: tools-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/install-tools.sh') }}
+
+      - name: Install tools
         run: |
-          forge test -vvv
-        id: test
+          scripts/install-tools.sh
+          echo "$PWD/.tools/bin" >> "$GITHUB_PATH"
+
+      - name: Check src is unchanged
+        run: shasum -a 256 --check --quiet scripts/frozen-src.sha256
+
+      - name: Check Solidity formatting
+        run: forge fmt --check
+
+      - name: Lint Solidity
+        run: forge lint --deny warnings
+
+      - name: Check formatting and lint with Biome
+        run: biome ci .
+
+      - name: Check TOML formatting
+        run: taplo fmt --check
+
+      - name: Lint shell scripts
+        run: |
+          shellcheck scripts/*.sh
+          shfmt -d scripts/*.sh
+
+      - name: Lint workflows
+        run: actionlint

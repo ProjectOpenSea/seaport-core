@@ -2,7 +2,7 @@
 # yarn lockfile v1
 
 
-seaport-types@^0.0.1:
-  version "0.0.1"
-  resolved "https://registry.yarnpkg.com/seaport-types/-/seaport-types-0.0.1.tgz#e2a32fe8641853d7dadb1b0232d911d88ccc3f1a"
-  integrity sha512-m7MLa7sq3YPwojxXiVvoX1PM9iNVtQIn7AdEtBnKTwgxPfGRWUlbs/oMgetpjT/ZYTmv3X5/BghOcstWYvKqRA==
+seaport-types@1.6.3:
+  version "1.6.3"
+  resolved "https://registry.yarnpkg.com/seaport-types/-/seaport-types-1.6.3.tgz#b9993864517d4f9ecccc6b6daf6ef3f52a114e58"
+  integrity sha512-Rm9dTTEUKmXqMgc5TiRtfX/sFOX6SjKkT9l/spTdRknplYh5tmJ0fMJzbE60pCzV1/Izq0cCua6uvWszo6zOAQ==
